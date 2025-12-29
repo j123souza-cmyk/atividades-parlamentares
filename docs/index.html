@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <title>Atividades Parlamentares</title>
-
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
@@ -22,7 +21,7 @@ nav button { margin-right: 6px; padding: 8px; }
 }
 .deputado img { width: 60px; border-radius: 6px; }
 table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
+th, td { border: 1px solid #ccc; padding: 6px; }
 th { background: #f0f0f0; }
 canvas { max-width: 500px; margin-top: 20px; }
 </style>
@@ -59,7 +58,7 @@ canvas { max-width: 500px; margin-top: 20px; }
         <th>#</th>
         <th>Deputado</th>
         <th>Partido</th>
-        <th>Proposições (12 meses)</th>
+        <th>Eventos (12 meses)</th>
       </tr>
     </thead>
     <tbody id="rankingBody"></tbody>
@@ -68,12 +67,14 @@ canvas { max-width: 500px; margin-top: 20px; }
 
 <script>
 const API = "https://dadosabertos.camara.leg.br/api/v2";
+
 const hoje = new Date();
 const umAnoAtras = new Date();
 umAnoAtras.setFullYear(hoje.getFullYear() - 1);
+const dataInicio = umAnoAtras.toISOString().split("T")[0];
 
 let deputados = [];
-let proposicoes = {};
+let eventos = {};
 let grafico = null;
 
 function mostrar(id) {
@@ -86,23 +87,34 @@ async function carregarDeputados() {
   const j = await r.json();
   deputados = j.dados;
   preencherFiltros();
-  carregarProposicoes();
+  carregarEventos();
 }
 
 function preencherFiltros() {
-  const partidos = [...new Set(deputados.map(d => d.siglaPartido))].sort();
-  const ufs = [...new Set(deputados.map(d => d.siglaUf))].sort();
+  [...new Set(deputados.map(d => d.siglaPartido))].sort()
+    .forEach(p => fPartido.innerHTML += `<option>${p}</option>`);
 
-  partidos.forEach(p => fPartido.innerHTML += `<option>${p}</option>`);
-  ufs.forEach(u => fUf.innerHTML += `<option>${u}</option>`);
+  [...new Set(deputados.map(d => d.siglaUf))].sort()
+    .forEach(u => fUf.innerHTML += `<option>${u}</option>`);
 }
 
-async function carregarProposicoes() {
+async function carregarEventos() {
   for (const d of deputados) {
-    const url = `${API}/proposicoes?idAutor=${d.id}&dataInicio=${umAnoAtras.toISOString().split('T')[0]}&itens=100`;
+    const url =
+      `${API}/deputados/${d.id}/eventos?dataInicio=${dataInicio}&itens=100`;
+
     const r = await fetch(url);
     const j = await r.json();
-    proposicoes[d.id] = j.dados.length;
+
+    // 👉 FILTRO CRÍTICO PARA EVITAR ZEROS
+    eventos[d.id] = (j.dados || []).filter(e =>
+      e.descricaoTipo &&
+      (
+        e.descricaoTipo.includes("Sessão") ||
+        e.descricaoTipo.includes("Reunião") ||
+        e.descricaoTipo.includes("Audiência")
+      )
+    ).length;
   }
   aplicarFiltros();
 }
@@ -131,7 +143,7 @@ function renderLista(lista) {
         <div>
           <strong>${d.nome}</strong><br>
           ${d.siglaPartido} - ${d.siglaUf}<br>
-          ${proposicoes[d.id]} proposições
+          ${eventos[d.id]} eventos
         </div>
       </div>
     `;
@@ -141,7 +153,7 @@ function renderLista(lista) {
 function renderRanking(lista) {
   rankingBody.innerHTML = "";
   lista
-    .map(d => ({ ...d, total: proposicoes[d.id] }))
+    .map(d => ({ ...d, total: eventos[d.id] }))
     .sort((a,b) => b.total - a.total)
     .forEach((d,i) => {
       rankingBody.innerHTML += `
@@ -160,10 +172,10 @@ function mostrarGrafico(id, nome) {
   grafico = new Chart(document.getElementById("grafico"), {
     type: "bar",
     data: {
-      labels: ["Proposições (12 meses)"],
+      labels: ["Eventos Parlamentares (12 meses)"],
       datasets: [{
         label: nome,
-        data: [proposicoes[id]]
+        data: [eventos[id]]
       }]
     }
   });
