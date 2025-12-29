@@ -1,38 +1,24 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-<meta charset="UTF-8">
-<title>Atividades Parlamentares</title>
+  <meta charset="UTF-8">
+  <title>Atividades Parlamentares</title>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
-<style>
-body { font-family: Arial, sans-serif; margin: 16px; }
-h1, h2 { margin-top: 20px; }
-nav button { margin-right: 6px; padding: 8px 12px; cursor: pointer; }
-.aba { display: none; }
-.ativa { display: block; }
+  <style>
+    body { font-family: Arial, sans-serif; margin: 16px; }
+    nav button { margin-right: 8px; padding: 8px 12px; cursor: pointer; }
+    .aba { display: none; }
+    .ativa { display: block; }
 
-select { margin-right: 6px; padding: 4px; }
-
-.deputado {
-  display: flex;
-  gap: 10px;
-  border-bottom: 1px solid #ddd;
-  padding: 8px 0;
-  cursor: pointer;
-}
-.deputado img {
-  width: 60px;
-  border-radius: 6px;
-}
-
-table { border-collapse: collapse; width: 100%; margin-top: 10px; }
-th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
-th { background: #f0f0f0; }
-
-canvas { margin-top: 12px; }
-</style>
+    .deputado {
+      display: flex; gap: 10px; border-bottom: 1px solid #ddd;
+      padding: 8px 0; cursor: pointer;
+    }
+    .deputado img { width: 60px; border-radius: 6px; }
+    #detalhe img { width: 120px; border-radius: 8px; }
+  </style>
 </head>
 <body>
 
@@ -40,188 +26,95 @@ canvas { margin-top: 12px; }
 
 <nav>
   <button onclick="mostrar('lista')">Deputados</button>
-  <button onclick="mostrar('ranking')">Ranking</button>
   <button onclick="mostrar('detalhe')">Detalhes</button>
 </nav>
 
-<!-- FILTROS -->
-<div>
-  UF:
-  <select id="filtroUF" onchange="aplicarFiltros()">
-    <option value="">Todos</option>
-  </select>
-
-  Partido:
-  <select id="filtroPartido" onchange="aplicarFiltros()">
-    <option value="">Todos</option>
-  </select>
-</div>
-
-<!-- LISTA -->
 <section id="lista" class="aba ativa">
   <p id="status">Carregando deputados...</p>
   <div id="listaDeputados"></div>
 </section>
 
-<!-- RANKING -->
-<section id="ranking" class="aba">
-  <h2>Ranking de Atividade (último ano)</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Deputado</th>
-        <th>Partido</th>
-        <th>Eventos</th>
-      </tr>
-    </thead>
-    <tbody id="rankingBody"></tbody>
-  </table>
-</section>
-
-<!-- DETALHE -->
 <section id="detalhe" class="aba">
   <h2 id="nomeDeputado"></h2>
   <img id="fotoDeputado">
-  <canvas id="graficoMensal" width="500" height="300"></canvas>
+  <p><strong>Atividades no último ano</strong></p>
+  <canvas id="grafico" width="420" height="300"></canvas>
 </section>
 
 <script>
 const BASE = "https://dadosabertos.camara.leg.br/api/v2";
-let deputados = [];
-let eventosPorDeputado = {};
-let chartMensal = null;
+let chart = null;
 
-/* ==== ABAS ==== */
 function mostrar(id) {
   document.querySelectorAll('.aba').forEach(a => a.classList.remove('ativa'));
   document.getElementById(id).classList.add('ativa');
 }
 
-/* ==== CARREGAR DEPUTADOS ==== */
+/* LISTA */
 fetch(`${BASE}/deputados?ordem=ASC&ordenarPor=nome`)
   .then(r => r.json())
   .then(json => {
-    deputados = json.dados;
     document.getElementById('status').remove();
-    preencherFiltros();
-    aplicarFiltros();
-    carregarEventos();
+    const lista = document.getElementById('listaDeputados');
+
+    json.dados.forEach(dep => {
+      const div = document.createElement('div');
+      div.className = 'deputado';
+      div.innerHTML = `
+        <img src="${dep.urlFoto}">
+        <div>
+          <strong>${dep.nome}</strong><br>
+          ${dep.siglaPartido} - ${dep.siglaUf}
+        </div>
+      `;
+      div.onclick = () => abrirDetalhe(dep);
+      lista.appendChild(div);
+    });
   });
 
-/* ==== FILTROS ==== */
-function preencherFiltros() {
-  const ufs = [...new Set(deputados.map(d => d.siglaUf))].sort();
-  const partidos = [...new Set(deputados.map(d => d.siglaPartido))].sort();
-
-  ufs.forEach(u => filtroUF.innerHTML += `<option value="${u}">${u}</option>`);
-  partidos.forEach(p => filtroPartido.innerHTML += `<option value="${p}">${p}</option>`);
-}
-
-function aplicarFiltros() {
-  const uf = filtroUF.value;
-  const partido = filtroPartido.value;
-
-  const filtrados = deputados
-    .filter(d => (!uf || d.siglaUf === uf))
-    .filter(d => (!partido || d.siglaPartido === partido));
-
-  renderLista(filtrados);
-  atualizarRanking(filtrados);
-}
-
-/* ==== LISTA ==== */
-function renderLista(listaDeps) {
-  const lista = document.getElementById('listaDeputados');
-  lista.innerHTML = "";
-
-  listaDeps.forEach(dep => {
-    const div = document.createElement('div');
-    div.className = 'deputado';
-    div.innerHTML = `
-      <img src="${dep.urlFoto}">
-      <div>
-        <strong>${dep.nome}</strong><br>
-        ${dep.siglaPartido} - ${dep.siglaUf}
-      </div>
-    `;
-    div.onclick = () => abrirDetalhe(dep);
-    lista.appendChild(div);
-  });
-}
-
-/* ==== EVENTOS (1 ANO) ==== */
-function carregarEventos() {
-  const fim = new Date();
-  const ini = new Date();
-  ini.setFullYear(fim.getFullYear() - 1);
-
-  const dataIni = ini.toISOString().slice(0,10);
-  const dataFim = fim.toISOString().slice(0,10);
-
-  // limite de segurança
-  deputados.slice(0, 50).forEach(dep => {
-    fetch(`${BASE}/deputados/${dep.id}/eventos?dataInicio=${dataIni}&dataFim=${dataFim}&itens=1000`)
-      .then(r => r.json())
-      .then(j => {
-        eventosPorDeputado[dep.id] = j.dados || [];
-        aplicarFiltros(); // atualiza ranking conforme dados chegam
-      });
-  });
-}
-
-/* ==== RANKING (OBEDECE AOS FILTROS) ==== */
-function atualizarRanking(listaDeps) {
-  const tbody = document.getElementById('rankingBody');
-  tbody.innerHTML = "";
-
-  const ranking = listaDeps
-    .map(d => ({
-      nome: d.nome,
-      partido: d.siglaPartido,
-      total: eventosPorDeputado[d.id]?.length || 0
-    }))
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 20);
-
-  ranking.forEach((r, index) => {
-    tbody.innerHTML += `
-      <tr>
-        <td>${index + 1}</td>
-        <td>${r.nome}</td>
-        <td>${r.partido}</td>
-        <td>${r.total}</td>
-      </tr>
-    `;
-  });
-}
-
-/* ==== DETALHE + GRÁFICO MENSAL ==== */
+/* DETALHE */
 function abrirDetalhe(dep) {
   mostrar('detalhe');
   nomeDeputado.innerText = dep.nome;
   fotoDeputado.src = dep.urlFoto;
 
-  const eventos = eventosPorDeputado[dep.id] || [];
-  const meses = Array(12).fill(0);
+  const fim = new Date();
+  const inicio = new Date();
+  inicio.setFullYear(fim.getFullYear() - 1);
 
-  eventos.forEach(e => {
-    if (!e.dataHoraInicio) return;
-    const m = new Date(e.dataHoraInicio).getMonth();
-    meses[m]++;
-  });
+  const dataIni = inicio.toISOString().slice(0,10);
+  const dataFim = fim.toISOString().slice(0,10);
 
-  if (chartMensal) chartMensal.destroy();
+  fetch(`${BASE}/deputados/${dep.id}/eventos?dataInicio=${dataIni}&dataFim=${dataFim}&itens=1000`)
+    .then(r => r.json())
+    .then(json => {
+      const eventos = json.dados || [];
 
-  chartMensal = new Chart(document.getElementById('graficoMensal'), {
-    type: 'line',
+      const totalEventos = eventos.length;
+
+      const plenarios = eventos.filter(e =>
+        (e.localCamara?.nome || "").toLowerCase().includes("plenário") ||
+        (e.descricao || "").toLowerCase().includes("plenário")
+      ).length;
+
+      desenharGrafico(totalEventos, plenarios);
+    });
+}
+
+/* GRÁFICO */
+function desenharGrafico(eventos, plenarios) {
+  const ctx = document.getElementById('grafico');
+  if (chart) chart.destroy();
+
+  chart = new Chart(ctx, {
+    type: 'bar',
     data: {
-      labels: ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'],
+      labels: ['Eventos', 'Atividades no Plenário'],
       datasets: [{
-        label: 'Eventos por mês',
-        data: meses,
-        borderColor: '#2196F3',
-        fill: false
+        label: 'Quantidade',
+        data: [eventos, plenarios],
+        backgroundColor: ['#4CAF50', '#2196F3'],
+        minBarLength: 6   // 🔒 garante barra visível
       }]
     },
     options: {
