@@ -3,15 +3,42 @@
 <head>
   <meta charset="UTF-8">
   <title>Atividades Parlamentares</title>
+
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <style>
-    body { font-family: Arial, sans-serif; margin: 16px; }
-    nav button { margin-right: 8px; padding: 8px 12px; }
-    .aba { display:none; }
-    .ativa { display:block; }
-    .deputado { display:flex; gap:10px; cursor:pointer; border-bottom:1px solid #ddd; padding:8px 0; }
-    .deputado img { width:60px; border-radius:6px; }
-    canvas { max-width: 400px; margin-top: 20px; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 16px;
+    }
+    nav button {
+      margin-right: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+    .aba {
+      display: none;
+    }
+    .ativa {
+      display: block;
+    }
+    .deputado {
+      display: flex;
+      gap: 10px;
+      border-bottom: 1px solid #ddd;
+      padding: 8px 0;
+      cursor: pointer;
+    }
+    .deputado img {
+      width: 60px;
+      border-radius: 6px;
+    }
+    #detalhe img {
+      width: 120px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
   </style>
 </head>
 <body>
@@ -19,83 +46,9 @@
 <h1>Atividades Parlamentares</h1>
 
 <nav>
-  <button onclick="mostrar('deputados')">Deputados</button>
-  <button onclick="mostrar('detalhe')">Detalhe</button>
+  <button onclick="mostrar('lista')">Deputados</button>
+  <button onclick="mostrar('detalhe')">Detalhes</button>
 </nav>
 
-<section id="deputados" class="aba ativa">
-  <p id="status">Carregando deputados...</p>
-  <div id="lista"></div>
-</section>
-
-<section id="detalhe" class="aba">
-  <h2 id="nome"></h2>
-  <img id="foto" width="100"><br><br>
-  <canvas id="grafico"></canvas>
-</section>
-
-<script>
-const BASE = "https://dadosabertos.camara.leg.br/api/v2";
-let deputados = [];
-let chart;
-
-function mostrar(id){
-  document.querySelectorAll('.aba').forEach(a=>a.classList.remove('ativa'));
-  document.getElementById(id).classList.add('ativa');
-}
-
-/* ==== LISTA DE DEPUTADOS ==== */
-fetch(`${BASE}/deputados?ordem=ASC&ordenarPor=nome`)
-  .then(r=>r.json())
-  .then(j=>{
-    deputados = j.dados;
-    document.getElementById('status').remove();
-    deputados.forEach(d=>{
-      const div=document.createElement('div');
-      div.className="deputado";
-      div.innerHTML=`
-        <img src="${d.urlFoto}">
-        <div><strong>${d.nome}</strong><br>${d.siglaPartido} - ${d.siglaUf}</div>
-      `;
-      div.onclick=()=>abrirDetalhe(d);
-      lista.appendChild(div);
-    });
-  });
-
-/* ==== DETALHES + GRÁFICO ==== */
-function abrirDetalhe(dep){
-  mostrar('detalhe');
-  nome.textContent = dep.nome;
-  foto.src = dep.urlFoto;
-
-  const anoPassado = new Date();
-  anoPassado.setFullYear(anoPassado.getFullYear() - 1);
-  const dataIni = anoPassado.toISOString().slice(0,10);
-
-  Promise.all([
-    fetch(`${BASE}/eventosDeputado?idDeputado=${dep.id}&dataInicio=${dataIni}`).then(r=>r.json()),
-    fetch(`${BASE}/deputados/${dep.id}/votacoes`).then(r=>r.json())
-  ]).then(([eventos, votacoes])=>{
-    const eventosCount = eventos.dados.length;
-    const votacoesCount = votacoes.dados.length;
-    desenharGrafico(eventosCount, votacoesCount);
-  });
-}
-
-function desenharGrafico(eventos, votacoes){
-  if(chart) chart.destroy();
-  chart = new Chart(document.getElementById('grafico'), {
-    type: 'bar',
-    data: {
-      labels: ['Eventos', 'Votações'],
-      datasets: [{
-        label: 'Atividades no último ano',
-        data: [eventos, votacoes]
-      }]
-    }
-  });
-}
-</script>
-
-</body>
-</html>
+<!-- LISTA DE DEPUTADOS -->
+<section id="lista" class="aba ativa
