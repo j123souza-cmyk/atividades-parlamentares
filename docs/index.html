@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <title>Atividades Parlamentares</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 16px; }
-    nav button { margin-right: 8px; padding: 8px 12px; cursor: pointer; }
-    .aba { display: none; }
-    .ativa { display: block; }
-    .item { border-bottom: 1px solid #ddd; padding: 8px 0; }
-    .deputado { display: flex; align-items: center; gap: 10px; }
-    .deputado img { width: 60px; border-radius: 6px; }
-    select { margin-right: 8px; padding: 4px; }
+    nav button { margin-right: 8px; padding: 8px 12px; }
+    .aba { display:none; }
+    .ativa { display:block; }
+    .deputado { display:flex; gap:10px; cursor:pointer; border-bottom:1px solid #ddd; padding:8px 0; }
+    .deputado img { width:60px; border-radius:6px; }
+    canvas { max-width: 400px; margin-top: 20px; }
   </style>
 </head>
 <body>
@@ -19,127 +19,82 @@
 <h1>Atividades Parlamentares</h1>
 
 <nav>
-  <button onclick="mostrar('hoje')">Hoje</button>
   <button onclick="mostrar('deputados')">Deputados</button>
-  <button onclick="mostrar('votacoes')">Votações</button>
+  <button onclick="mostrar('detalhe')">Detalhe</button>
 </nav>
 
-<section id="hoje" class="aba ativa">
-  <p id="status-hoje">Carregando eventos de hoje...</p>
-  <div id="lista-hoje"></div>
+<section id="deputados" class="aba ativa">
+  <p id="status">Carregando deputados...</p>
+  <div id="lista"></div>
 </section>
 
-<section id="deputados" class="aba">
-  <h2>Deputados Federais</h2>
-
-  <label>UF:
-    <select id="filtroUF">
-      <option value="">Todas</option>
-    </select>
-  </label>
-
-  <label>Partido:
-    <select id="filtroPartido">
-      <option value="">Todos</option>
-    </select>
-  </label>
-
-  <p id="status-dep">Carregando deputados...</p>
-  <div id="lista-dep"></div>
-</section>
-
-<section id="votacoes" class="aba">
-  <p id="status-vot">Carregando votações recentes...</p>
-  <div id="lista-vot"></div>
+<section id="detalhe" class="aba">
+  <h2 id="nome"></h2>
+  <img id="foto" width="100"><br><br>
+  <canvas id="grafico"></canvas>
 </section>
 
 <script>
 const BASE = "https://dadosabertos.camara.leg.br/api/v2";
 let deputados = [];
+let chart;
 
 function mostrar(id){
   document.querySelectorAll('.aba').forEach(a=>a.classList.remove('ativa'));
   document.getElementById(id).classList.add('ativa');
 }
 
-/* ========= HOJE ========= */
-(function(){
-  const hoje = new Date().toISOString().slice(0,10);
-  fetch(`${BASE}/eventos?dataInicio=${hoje}&dataFim=${hoje}`)
-    .then(r=>r.json()).then(j=>{
-      document.getElementById('status-hoje').remove();
-      const l = document.getElementById('lista-hoje');
-      j.dados.forEach(e=>{
-        const d = document.createElement('div');
-        d.className = "item";
-        d.textContent = `${e.descricaoTipo} — ${e.descricao}`;
-        l.appendChild(d);
-      });
-    });
-})();
-
-/* ========= DEPUTADOS ========= */
+/* ==== LISTA DE DEPUTADOS ==== */
 fetch(`${BASE}/deputados?ordem=ASC&ordenarPor=nome`)
   .then(r=>r.json())
   .then(j=>{
     deputados = j.dados;
-    document.getElementById('status-dep').remove();
-    preencherFiltros();
-    renderizar();
-  });
-
-function preencherFiltros(){
-  const ufSel = document.getElementById('filtroUF');
-  const partSel = document.getElementById('filtroPartido');
-
-  [...new Set(deputados.map(d=>d.siglaUf))].sort()
-    .forEach(uf=>{
-      ufSel.innerHTML += `<option value="${uf}">${uf}</option>`;
-    });
-
-  [...new Set(deputados.map(d=>d.siglaPartido))].sort()
-    .forEach(p=>{
-      partSel.innerHTML += `<option value="${p}">${p}</option>`;
-    });
-
-  ufSel.onchange = partSel.onchange = renderizar;
-}
-
-function renderizar(){
-  const uf = filtroUF.value;
-  const partido = filtroPartido.value;
-  const lista = document.getElementById('lista-dep');
-  lista.innerHTML = "";
-
-  deputados
-    .filter(d => (!uf || d.siglaUf===uf) &&
-                 (!partido || d.siglaPartido===partido))
-    .forEach(dep=>{
-      const div = document.createElement("div");
-      div.className = "item deputado";
-      div.innerHTML = `
-        <img src="${dep.urlFoto}">
-        <div>
-          <strong>${dep.nome}</strong><br>
-          ${dep.siglaPartido} - ${dep.siglaUf}
-        </div>`;
+    document.getElementById('status').remove();
+    deputados.forEach(d=>{
+      const div=document.createElement('div');
+      div.className="deputado";
+      div.innerHTML=`
+        <img src="${d.urlFoto}">
+        <div><strong>${d.nome}</strong><br>${d.siglaPartido} - ${d.siglaUf}</div>
+      `;
+      div.onclick=()=>abrirDetalhe(d);
       lista.appendChild(div);
     });
+  });
+
+/* ==== DETALHES + GRÁFICO ==== */
+function abrirDetalhe(dep){
+  mostrar('detalhe');
+  nome.textContent = dep.nome;
+  foto.src = dep.urlFoto;
+
+  const anoPassado = new Date();
+  anoPassado.setFullYear(anoPassado.getFullYear() - 1);
+  const dataIni = anoPassado.toISOString().slice(0,10);
+
+  Promise.all([
+    fetch(`${BASE}/eventosDeputado?idDeputado=${dep.id}&dataInicio=${dataIni}`).then(r=>r.json()),
+    fetch(`${BASE}/deputados/${dep.id}/votacoes`).then(r=>r.json())
+  ]).then(([eventos, votacoes])=>{
+    const eventosCount = eventos.dados.length;
+    const votacoesCount = votacoes.dados.length;
+    desenharGrafico(eventosCount, votacoesCount);
+  });
 }
 
-/* ========= VOTAÇÕES ========= */
-fetch(`${BASE}/votacoes?ordem=DESC&ordenarPor=dataHoraRegistro`)
-  .then(r=>r.json())
-  .then(j=>{
-    document.getElementById('status-vot').remove();
-    const l = document.getElementById('lista-vot');
-    j.dados.slice(0,20).forEach(v=>{
-      const d=document.createElement('div');
-      d.className="item";
-      d.textContent = `${v.dataHoraRegistro.slice(0,10)} — ${v.descricao}`;
-      l.appendChild(d);
-    });
+function desenharGrafico(eventos, votacoes){
+  if(chart) chart.destroy();
+  chart = new Chart(document.getElementById('grafico'), {
+    type: 'bar',
+    data: {
+      labels: ['Eventos', 'Votações'],
+      datasets: [{
+        label: 'Atividades no último ano',
+        data: [eventos, votacoes]
+      }]
+    }
   });
+}
 </script>
 
 </body>
