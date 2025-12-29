@@ -12,6 +12,15 @@
     .aba { display: none; }
     .ativa { display: block; }
 
+    .filtros {
+      margin: 12px 0;
+    }
+    .filtros input,
+    .filtros select {
+      padding: 6px;
+      margin-right: 6px;
+    }
+
     .deputado {
       display: flex; gap: 10px; border-bottom: 1px solid #ddd;
       padding: 8px 0; cursor: pointer;
@@ -31,6 +40,24 @@
 
 <section id="lista" class="aba ativa">
   <p id="status">Carregando deputados...</p>
+
+  <!-- FILTROS -->
+  <div class="filtros">
+    <input
+      type="text"
+      id="filtroNome"
+      placeholder="Buscar por nome"
+      oninput="aplicarFiltros()">
+
+    <select id="filtroPartido" onchange="aplicarFiltros()">
+      <option value="">Partido</option>
+    </select>
+
+    <select id="filtroUf" onchange="aplicarFiltros()">
+      <option value="">UF</option>
+    </select>
+  </div>
+
   <div id="listaDeputados"></div>
 </section>
 
@@ -44,6 +71,7 @@
 <script>
 const BASE = "https://dadosabertos.camara.leg.br/api/v2";
 let chart = null;
+let deputados = [];
 
 function mostrar(id) {
   document.querySelectorAll('.aba').forEach(a => a.classList.remove('ativa'));
@@ -55,22 +83,66 @@ fetch(`${BASE}/deputados?ordem=ASC&ordenarPor=nome`)
   .then(r => r.json())
   .then(json => {
     document.getElementById('status').remove();
-    const lista = document.getElementById('listaDeputados');
+    deputados = json.dados;
 
-    json.dados.forEach(dep => {
-      const div = document.createElement('div');
-      div.className = 'deputado';
-      div.innerHTML = `
-        <img src="${dep.urlFoto}">
-        <div>
-          <strong>${dep.nome}</strong><br>
-          ${dep.siglaPartido} - ${dep.siglaUf}
-        </div>
-      `;
-      div.onclick = () => abrirDetalhe(dep);
-      lista.appendChild(div);
-    });
+    preencherFiltros(deputados);
+    renderizarLista(deputados);
   });
+
+function preencherFiltros(lista) {
+  const partidos = [...new Set(lista.map(d => d.siglaPartido))].sort();
+  const ufs = [...new Set(lista.map(d => d.siglaUf))].sort();
+
+  const selPartido = document.getElementById('filtroPartido');
+  const selUf = document.getElementById('filtroUf');
+
+  partidos.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p;
+    opt.textContent = p;
+    selPartido.appendChild(opt);
+  });
+
+  ufs.forEach(u => {
+    const opt = document.createElement('option');
+    opt.value = u;
+    opt.textContent = u;
+    selUf.appendChild(opt);
+  });
+}
+
+function aplicarFiltros() {
+  const nome = document.getElementById('filtroNome').value.toLowerCase();
+  const partido = document.getElementById('filtroPartido').value;
+  const uf = document.getElementById('filtroUf').value;
+
+  const filtrados = deputados.filter(d =>
+    d.nome.toLowerCase().includes(nome) &&
+    (partido === "" || d.siglaPartido === partido) &&
+    (uf === "" || d.siglaUf === uf)
+  );
+
+  renderizarLista(filtrados);
+}
+
+function renderizarLista(lista) {
+  const container = document.getElementById('listaDeputados');
+  container.innerHTML = "";
+
+  lista.forEach(dep => {
+    const div = document.createElement('div');
+    div.className = 'deputado';
+    div.innerHTML = `
+      <img src="${dep.urlFoto}">
+      <div>
+        <strong>${dep.nome}</strong><br>
+        ${dep.siglaPartido} - ${dep.siglaUf}
+      </div>
+    `;
+    div.onclick = () => abrirDetalhe(dep);
+    container.appendChild(div);
+  });
+}
 
 /* DETALHE */
 function abrirDetalhe(dep) {
@@ -114,7 +186,7 @@ function desenharGrafico(eventos, plenarios) {
         label: 'Quantidade',
         data: [eventos, plenarios],
         backgroundColor: ['#4CAF50', '#2196F3'],
-        minBarLength: 6   // 🔒 garante barra visível
+        minBarLength: 6
       }]
     },
     options: {
