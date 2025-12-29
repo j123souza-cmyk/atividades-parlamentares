@@ -32,6 +32,7 @@ th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
 th { background: #f0f0f0; }
 
 canvas { margin-top: 12px; }
+.info { margin-top: 8px; color: #666; font-size: 14px; }
 </style>
 </head>
 <body>
@@ -66,6 +67,7 @@ canvas { margin-top: 12px; }
 <!-- RANKING -->
 <section id="ranking" class="aba">
   <h2>Ranking de Atividade (último ano)</h2>
+  <div class="info" id="statusRanking"></div>
   <table>
     <thead>
       <tr>
@@ -91,6 +93,8 @@ const BASE = "https://dadosabertos.camara.leg.br/api/v2";
 let deputados = [];
 let eventosPorDeputado = {};
 let chartMensal = null;
+let carregados = 0;
+const LIMITE = 50; // limite seguro para a API
 
 /* ==== ABAS ==== */
 function mostrar(id) {
@@ -159,30 +163,42 @@ function carregarEventos() {
   const dataIni = ini.toISOString().slice(0,10);
   const dataFim = fim.toISOString().slice(0,10);
 
-  // limite de segurança
-  deputados.slice(0, 50).forEach(dep => {
+  deputados.slice(0, LIMITE).forEach(dep => {
     fetch(`${BASE}/deputados/${dep.id}/eventos?dataInicio=${dataIni}&dataFim=${dataFim}&itens=1000`)
       .then(r => r.json())
       .then(j => {
         eventosPorDeputado[dep.id] = j.dados || [];
-        aplicarFiltros(); // atualiza ranking conforme dados chegam
+        carregados++;
+        document.getElementById('statusRanking').innerText =
+          `Carregando dados de atividade: ${carregados}/${LIMITE}`;
+        aplicarFiltros();
       });
   });
 }
 
-/* ==== RANKING (OBEDECE AOS FILTROS) ==== */
+/* ==== RANKING (SEM ZEROS FALSOS) ==== */
 function atualizarRanking(listaDeps) {
   const tbody = document.getElementById('rankingBody');
   tbody.innerHTML = "";
 
   const ranking = listaDeps
+    .filter(d => eventosPorDeputado[d.id] !== undefined)
     .map(d => ({
       nome: d.nome,
       partido: d.siglaPartido,
-      total: eventosPorDeputado[d.id]?.length || 0
+      total: eventosPorDeputado[d.id].length
     }))
     .sort((a, b) => b.total - a.total)
     .slice(0, 20);
+
+  if (ranking.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="4">Carregando dados de atividade…</td>
+      </tr>
+    `;
+    return;
+  }
 
   ranking.forEach((r, index) => {
     tbody.innerHTML += `
