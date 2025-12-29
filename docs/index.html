@@ -4,262 +4,81 @@
 <meta charset="UTF-8">
 <title>Atividades Parlamentares</title>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-
 <style>
-body { font-family: Arial, sans-serif; margin: 16px; }
-h1, h2 { margin-top: 20px; }
-nav button { margin-right: 6px; padding: 8px 12px; cursor: pointer; }
-.aba { display: none; }
-.ativa { display: block; }
-
-select { margin-right: 6px; padding: 4px; }
-
+body { font-family: Arial, sans-serif; margin: 20px; }
 .deputado {
   display: flex;
+  align-items: center;
   gap: 10px;
   border-bottom: 1px solid #ddd;
-  padding: 8px 0;
-  cursor: pointer;
+  padding: 10px 0;
 }
 .deputado img {
   width: 60px;
   border-radius: 6px;
 }
-
-table { border-collapse: collapse; width: 100%; margin-top: 10px; }
-th, td { border: 1px solid #ccc; padding: 6px; }
-th { background: #f0f0f0; }
-
-canvas { margin-top: 14px; }
-.info { color: #666; font-size: 14px; }
 </style>
 </head>
+
 <body>
 
-<h1>Atividades Parlamentares</h1>
+<h1>Deputados Federais – Atividades</h1>
+<p id="status">Carregando deputados…</p>
 
-<nav>
-  <button onclick="mostrar('lista')">Deputados</button>
-  <button onclick="mostrar('ranking')">Ranking</button>
-  <button onclick="mostrar('detalhe')">Detalhes</button>
-</nav>
-
-<!-- FILTROS -->
-<div>
-  UF:
-  <select id="filtroUF" onchange="aplicarFiltros()">
-    <option value="">Todos</option>
-  </select>
-
-  Partido:
-  <select id="filtroPartido" onchange="aplicarFiltros()">
-    <option value="">Todos</option>
-  </select>
-</div>
-
-<!-- LISTA -->
-<section id="lista" class="aba ativa">
-  <p id="status">Carregando deputados…</p>
-  <div id="listaDeputados"></div>
-</section>
-
-<!-- RANKING -->
-<section id="ranking" class="aba">
-  <h2>Ranking de Atividade</h2>
-  <div class="info" id="statusRanking"></div>
-  <table>
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Deputado</th>
-        <th>Partido</th>
-        <th>Eventos</th>
-      </tr>
-    </thead>
-    <tbody id="rankingBody"></tbody>
-  </table>
-</section>
-
-<!-- DETALHE -->
-<section id="detalhe" class="aba">
-  <h2 id="nomeDeputado"></h2>
-  <img id="fotoDeputado">
-
-  <h3>Eventos por mês</h3>
-  <canvas id="graficoMensal" width="480" height="260"></canvas>
-
-  <h3>Presença em sessões plenárias (%)</h3>
-  <canvas id="graficoPresenca" width="480" height="260"></canvas>
-</section>
+<div id="lista"></div>
 
 <script>
-const BASE = "https://dadosabertos.camara.leg.br/api/v2";
-let deputados = [];
-let eventosPorDeputado = {};
-let chartMensal = null;
-let chartPresenca = null;
-let carregados = 0;
-const LIMITE = 50;
+const API = "https://dadosabertos.camara.leg.br/api/v2";
+const LIMITE = 20;
 
-/* ==== ABAS ==== */
-function mostrar(id) {
-  document.querySelectorAll('.aba').forEach(a => a.classList.remove('ativa'));
-  document.getElementById(id).classList.add('ativa');
-}
+async function iniciar() {
+  try {
+    const depResp = await fetch(`${API}/deputados?ordenarPor=nome&itens=${LIMITE}`);
+    const depJson = await depResp.json();
+    const deputados = depJson.dados;
 
-/* ==== DEPUTADOS ==== */
-fetch(`${BASE}/deputados?ordenarPor=nome`)
-  .then(r => r.json())
-  .then(j => {
-    deputados = j.dados;
-    status.remove();
-    preencherFiltros();
-    aplicarFiltros();
-    carregarEventos();
-  });
+    document.getElementById("status").remove();
 
-/* ==== FILTROS ==== */
-function preencherFiltros() {
-  [...new Set(deputados.map(d => d.siglaUf))].sort()
-    .forEach(u => filtroUF.innerHTML += `<option>${u}</option>`);
-
-  [...new Set(deputados.map(d => d.siglaPartido))].sort()
-    .forEach(p => filtroPartido.innerHTML += `<option>${p}</option>`);
-}
-
-function aplicarFiltros() {
-  const uf = filtroUF.value;
-  const p = filtroPartido.value;
-
-  const filtrados = deputados
-    .filter(d => !uf || d.siglaUf === uf)
-    .filter(d => !p || d.siglaPartido === p);
-
-  renderLista(filtrados);
-  atualizarRanking(filtrados);
-}
-
-/* ==== LISTA ==== */
-function renderLista(lista) {
-  listaDeputados.innerHTML = "";
-  lista.forEach(d => {
-    const div = document.createElement('div');
-    div.className = "deputado";
-    div.innerHTML = `
-      <img src="${d.urlFoto}">
-      <div><strong>${d.nome}</strong><br>${d.siglaPartido} - ${d.siglaUf}</div>
-    `;
-    div.onclick = () => abrirDetalhe(d);
-    listaDeputados.appendChild(div);
-  });
-}
-
-/* ==== EVENTOS ==== */
-function carregarEventos() {
-  const f = new Date();
-  const i = new Date(); i.setFullYear(f.getFullYear() - 1);
-  const ini = i.toISOString().slice(0,10);
-  const fim = f.toISOString().slice(0,10);
-
-  deputados.slice(0, LIMITE).forEach(d => {
-    fetch(`${BASE}/deputados/${d.id}/eventos?dataInicio=${ini}&dataFim=${fim}&itens=1000`)
-      .then(r => r.json())
-      .then(j => {
-        eventosPorDeputado[d.id] = j.dados || [];
-        carregados++;
-        statusRanking.innerText = `Carregando eventos: ${carregados}/${LIMITE}`;
-        aplicarFiltros();
-      });
-  });
-}
-
-/* ==== RANKING ==== */
-function atualizarRanking(lista) {
-  rankingBody.innerHTML = "";
-
-  const rank = lista
-    .filter(d => eventosPorDeputado[d.id])
-    .map(d => ({
-      nome: d.nome,
-      partido: d.siglaPartido,
-      total: eventosPorDeputado[d.id].length
-    }))
-    .sort((a,b) => b.total - a.total)
-    .slice(0,20);
-
-  if (!rank.length) {
-    rankingBody.innerHTML = `<tr><td colspan="4">Carregando…</td></tr>`;
-    return;
-  }
-
-  rank.forEach((r,i) => {
-    rankingBody.innerHTML += `
-      <tr>
-        <td>${i+1}</td>
-        <td>${r.nome}</td>
-        <td>${r.partido}</td>
-        <td>${r.total}</td>
-      </tr>
-    `;
-  });
-}
-
-/* ==== DETALHE ==== */
-function abrirDetalhe(dep) {
-  mostrar('detalhe');
-  nomeDeputado.innerText = dep.nome;
-  fotoDeputado.src = dep.urlFoto;
-
-  const eventos = eventosPorDeputado[dep.id] || [];
-
-  /* GRAFICO MENSAL */
-  const meses = Array(12).fill(0);
-  eventos.forEach(e => {
-    if (e.dataHoraInicio)
-      meses[new Date(e.dataHoraInicio).getMonth()]++;
-  });
-
-  if (chartMensal) chartMensal.destroy();
-  chartMensal = new Chart(graficoMensal, {
-    type: 'line',
-    data: { labels: ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'],
-      datasets: [{ label:'Eventos', data: meses, borderColor:'#1976d2', fill:false }]
-    },
-    options:{ responsive:false, scales:{ y:{ beginAtZero:true } } }
-  });
-
-  /* PRESENÇA EM SESSÕES */
-  const sessoesDep = eventos.filter(e =>
-    e.descricaoTipo && e.descricaoTipo.toLowerCase().includes("sessão")
-  ).length;
-
-  const maxSessoes = Math.max(
-    ...Object.values(eventosPorDeputado).map(ev =>
-      ev.filter(e => e.descricaoTipo && e.descricaoTipo.toLowerCase().includes("sessão")).length
-    )
-  );
-
-  const percentual = maxSessoes ? Math.round((sessoesDep / maxSessoes) * 100) : 0;
-
-  if (chartPresenca) chartPresenca.destroy();
-  chartPresenca = new Chart(graficoPresenca, {
-    type: 'doughnut',
-    data: {
-      labels: ['Presença', 'Ausência relativa'],
-      datasets: [{
-        data: [percentual, 100 - percentual]
-      }]
-    },
-    options: {
-      responsive:false,
-      plugins: {
-        tooltip: { enabled:true },
-        title: { display:true, text:`${percentual}% de presença em sessões plenárias` }
-      }
+    for (const d of deputados) {
+      carregarDeputado(d);
     }
-  });
+
+  } catch (e) {
+    document.getElementById("status").innerText = "Erro ao carregar dados";
+    console.error(e);
+  }
 }
+
+async function carregarDeputado(dep) {
+  const div = document.createElement("div");
+  div.className = "deputado";
+  div.innerHTML = `
+    <img src="${dep.urlFoto}">
+    <div>
+      <strong>${dep.nome}</strong><br>
+      ${dep.siglaPartido} - ${dep.siglaUf}<br>
+      Carregando atividades…
+    </div>
+  `;
+
+  document.getElementById("lista").appendChild(div);
+
+  try {
+    const evResp = await fetch(`${API}/deputados/${dep.id}/eventos?itens=50`);
+    const evJson = await evResp.json();
+    const total = evJson.dados ? evJson.dados.length : 0;
+
+    div.querySelector("div").innerHTML = `
+      <strong>${dep.nome}</strong><br>
+      ${dep.siglaPartido} - ${dep.siglaUf}<br>
+      ${total} eventos registrados
+    `;
+  } catch {
+    div.querySelector("div").innerHTML += `<br>Erro ao carregar eventos`;
+  }
+}
+
+iniciar();
 </script>
 
 </body>
