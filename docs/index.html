@@ -5,7 +5,35 @@
   <title>Atividades Parlamentares</title>
 </head>
 <body>
-  <h1>Atividades Parlamentares</h1>
-  <p>Site publicado com sucesso via GitHub Pages.</p>
+  <h1>Atividades da Câmara dos Deputados</h1>
+  <p id="status">Carregando dados...</p>
+  <ul id="lista"></ul>
+
+  <script>
+    const hoje = new Date().toISOString().slice(0, 10);
+    const url = `https://dadosabertos.camara.leg.br/api/v2/eventos?dataInicio=${hoje}&dataFim=${hoje}`;
+
+    fetch(url)
+      .then(res => res.json())
+      .then(dados => {
+        const lista = document.getElementById('lista');
+        document.getElementById('status').remove();
+
+        if (!dados.dados.length) {
+          lista.innerHTML = "<li>Não há eventos hoje.</li>";
+          return;
+        }
+
+        dados.dados.forEach(ev => {
+          const li = document.createElement('li');
+          li.innerText = `${ev.descricaoTipo} — ${ev.descricao}`;
+          lista.appendChild(li);
+        });
+      })
+      .catch(() => {
+        document.getElementById('status').innerText =
+          "Erro ao carregar os dados da Câmara.";
+      });
+  </script>
 </body>
 </html>
