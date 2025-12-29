@@ -7,35 +7,17 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 16px;
-    }
-    nav button {
-      margin-right: 8px;
-      padding: 8px 12px;
-      cursor: pointer;
-    }
+    body { font-family: Arial, sans-serif; margin: 16px; }
+    nav button { margin-right: 8px; padding: 8px 12px; cursor: pointer; }
     .aba { display: none; }
     .ativa { display: block; }
 
     .deputado {
-      display: flex;
-      gap: 10px;
-      border-bottom: 1px solid #ddd;
-      padding: 8px 0;
-      cursor: pointer;
+      display: flex; gap: 10px; border-bottom: 1px solid #ddd;
+      padding: 8px 0; cursor: pointer;
     }
-    .deputado img {
-      width: 60px;
-      border-radius: 6px;
-    }
-
-    #detalhe img {
-      width: 120px;
-      border-radius: 8px;
-      margin-bottom: 10px;
-    }
+    .deputado img { width: 60px; border-radius: 6px; }
+    #detalhe img { width: 120px; border-radius: 8px; }
   </style>
 </head>
 <body>
@@ -109,38 +91,35 @@ function abrirDetalhe(dep) {
       const eventos = json.dados || [];
 
       const totalEventos = eventos.length;
-      const totalVotacoes = eventos.filter(
-        e => e.tipoEvento?.descricao === "Votação"
+
+      const plenarios = eventos.filter(e =>
+        (e.localCamara?.nome || "").toLowerCase().includes("plenário") ||
+        (e.descricao || "").toLowerCase().includes("plenário")
       ).length;
 
-      desenharGrafico(totalEventos, totalVotacoes);
+      desenharGrafico(totalEventos, plenarios);
     });
 }
 
 /* GRÁFICO */
-function desenharGrafico(eventos, votacoes) {
+function desenharGrafico(eventos, plenarios) {
   const ctx = document.getElementById('grafico');
-
   if (chart) chart.destroy();
 
   chart = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: ['Eventos', 'Votações'],
+      labels: ['Eventos', 'Atividades no Plenário'],
       datasets: [{
         label: 'Quantidade',
-        data: [eventos, votacoes],
-        backgroundColor: ['#4CAF50', '#2196F3']
+        data: [eventos, plenarios],
+        backgroundColor: ['#4CAF50', '#2196F3'],
+        minBarLength: 6   // 🔒 garante barra visível
       }]
     },
     options: {
       responsive: false,
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: { precision: 0 }
-        }
-      }
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
     }
   });
 }
