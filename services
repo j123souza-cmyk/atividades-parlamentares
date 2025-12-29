@@ -1,1 +1,22 @@
+const BASE = "https://dadosabertos.camara.leg.br/api/v2";
 
+export async function getDeputados() {
+  const res = await fetch(`${BASE}/deputados`);
+  const json = await res.json();
+  return json.dados;
+}
+
+export async function getEventosHoje() {
+  const hoje = new Date().toISOString().slice(0, 10);
+  const res = await fetch(
+    `${BASE}/eventos?dataInicio=${hoje}&dataFim=${hoje}`
+  );
+  const json = await res.json();
+  return json.dados;
+}
+
+export async function getVotacoesDeputado(id) {
+  const res = await fetch(`${BASE}/deputados/${id}/votacoes`);
+  const json = await res.json();
+  return json.dados;
+}
