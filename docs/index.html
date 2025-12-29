@@ -4,59 +4,101 @@
   <meta charset="UTF-8">
   <title>Atividades Parlamentares</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
+    body { font-family: Arial, sans-serif; margin: 16px; }
+    nav button {
+      margin-right: 8px; padding: 8px 12px; cursor: pointer;
+    }
+    .aba { display: none; }
+    .ativa { display: block; }
+    .item {
+      border-bottom: 1px solid #ddd; padding: 8px 0;
     }
     .deputado {
-      display: flex;
-      align-items: center;
-      margin-bottom: 12px;
-      border-bottom: 1px solid #ddd;
-      padding-bottom: 8px;
+      display: flex; align-items: center; gap: 10px;
     }
-    .deputado img {
-      width: 60px;
-      margin-right: 10px;
-      border-radius: 6px;
-    }
+    .deputado img { width: 60px; border-radius: 6px; }
   </style>
 </head>
 <body>
 
-  <h1>Deputados Federais</h1>
-  <p id="status">Carregando deputados...</p>
+  <h1>Atividades Parlamentares</h1>
 
-  <div id="lista"></div>
+  <nav>
+    <button onclick="mostrar('hoje')">Hoje</button>
+    <button onclick="mostrar('deputados')">Deputados</button>
+    <button onclick="mostrar('votacoes')">Votações</button>
+  </nav>
 
-  <script>
-    const url = "https://dadosabertos.camara.leg.br/api/v2/deputados?ordem=ASC&ordenarPor=nome";
+  <!-- ABA HOJE -->
+  <section id="hoje" class="aba ativa">
+    <p id="status-hoje">Carregando eventos de hoje...</p>
+    <div id="lista-hoje"></div>
+  </section>
 
-    fetch(url)
-      .then(res => res.json())
-      .then(data => {
-        const lista = document.getElementById("lista");
-        document.getElementById("status").remove();
+  <!-- ABA DEPUTADOS -->
+  <section id="deputados" class="aba">
+    <p id="status-dep">Carregando deputados...</p>
+    <div id="lista-dep"></div>
+  </section>
 
-        data.dados.forEach(dep => {
-          const div = document.createElement("div");
-          div.className = "deputado";
+  <!-- ABA VOTAÇÕES -->
+  <section id="votacoes" class="aba">
+    <p id="status-vot">Carregando votações recentes...</p>
+    <div id="lista-vot"></div>
+  </section>
 
-          div.innerHTML = `
-            <img src="${dep.urlFoto}" alt="Foto">
-            <div>
-              <strong>${dep.nome}</strong><br>
-              ${dep.siglaPartido} - ${dep.siglaUf}
-            </div>
-          `;
+<script>
+const BASE = "https://dadosabertos.camara.leg.br/api/v2";
 
-          lista.appendChild(div);
-        });
-      })
-      .catch(() => {
-        document.getElementById("status").innerText =
-          "Erro ao carregar deputados.";
+function mostrar(id) {
+  document.querySelectorAll('.aba').forEach(a => a.classList.remove('ativa'));
+  document.getElementById(id).classList.add('ativa');
+}
+
+// ===== HOJE =====
+(function carregarHoje(){
+  const hoje = new Date().toISOString().slice(0,10);
+  fetch(`${BASE}/eventos?dataInicio=${hoje}&dataFim=${hoje}`)
+    .then(r=>r.json()).then(j=>{
+      document.getElementById('status-hoje').remove();
+      const lista = document.getElementById('lista-hoje');
+      if(!j.dados.length){
+        lista.innerHTML = "<p>Não há eventos hoje.</p>";
+        return;
+      }
+      j.dados.forEach(e=>{
+        const d = document.createElement('div');
+        d.className = "item";
+        d.textContent = `${e.descricaoTipo} — ${e.descricao}`;
+        lista.appendChild(d);
       });
-  </script>
+    }).catch(()=>{
+      document.getElementById('status-hoje').textContent = "Erro ao carregar.";
+    });
+})();
 
-</body>
-</html>
+// ===== DEPUTADOS =====
+(function carregarDeputados(){
+  fetch(`${BASE}/deputados?ordem=ASC&ordenarPor=nome`)
+    .then(r=>r.json()).then(j=>{
+      document.getElementById('status-dep').remove();
+      const lista = document.getElementById('lista-dep');
+      j.dados.forEach(dep=>{
+        const d = document.createElement('div');
+        d.className = "item deputado";
+        d.innerHTML = `
+          <img src="${dep.urlFoto}" alt="Foto">
+          <div><strong>${dep.nome}</strong><br>${dep.siglaPartido} - ${dep.siglaUf}</div>`;
+        lista.appendChild(d);
+      });
+    }).catch(()=>{
+      document.getElementById('status-dep').textContent = "Erro ao carregar.";
+    });
+})();
+
+// ===== VOTAÇÕES =====
+(function carregarVotacoes(){
+  fetch(`${BASE}/votacoes?ordem=DESC&ordenarPor=dataHoraRegistro`)
+    .then(r=>r.json()).then(j=>{
+      document.getElementById('status-vot').remove();
+      const lista = document.getElementById('
