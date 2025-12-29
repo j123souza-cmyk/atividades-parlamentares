@@ -51,4 +51,108 @@
 </nav>
 
 <!-- LISTA DE DEPUTADOS -->
-<section id="lista" class="aba ativa
+<section id="lista" class="aba ativa">
+  <p id="status-lista">Carregando deputados...</p>
+  <div id="listaDeputados"></div>
+</section>
+
+<!-- DETALHE DO DEPUTADO -->
+<section id="detalhe" class="aba">
+  <h2 id="nomeDeputado"></h2>
+  <img id="fotoDeputado" src="">
+  <p><strong>Atividades no último ano</strong></p>
+  <canvas id="grafico" width="400" height="300"></canvas>
+</section>
+
+<script>
+const BASE = "https://dadosabertos.camara.leg.br/api/v2";
+let chart = null;
+
+/* ==== CONTROLE DE ABAS ==== */
+function mostrar(id) {
+  document.querySelectorAll('.aba').forEach(a => a.classList.remove('ativa'));
+  document.getElementById(id).classList.add('ativa');
+}
+
+/* ==== CARREGAR DEPUTADOS ==== */
+fetch(`${BASE}/deputados?ordem=ASC&ordenarPor=nome`)
+  .then(r => r.json())
+  .then(json => {
+    document.getElementById('status-lista').remove();
+    const lista = document.getElementById('listaDeputados');
+
+    json.dados.forEach(dep => {
+      const div = document.createElement('div');
+      div.className = "deputado";
+      div.innerHTML = `
+        <img src="${dep.urlFoto}">
+        <div>
+          <strong>${dep.nome}</strong><br>
+          ${dep.siglaPartido} - ${dep.siglaUf}
+        </div>
+      `;
+      div.onclick = () => abrirDetalhe(dep);
+      lista.appendChild(div);
+    });
+  });
+
+/* ==== ABRIR DETALHE + CARREGAR DADOS ==== */
+function abrirDetalhe(dep) {
+  mostrar('detalhe');
+
+  document.getElementById('nomeDeputado').innerText = dep.nome;
+  document.getElementById('fotoDeputado').src = dep.urlFoto;
+
+  const dataInicio = new Date();
+  dataInicio.setFullYear(dataInicio.getFullYear() - 1);
+  const dataIniStr = dataInicio.toISOString().slice(0, 10);
+
+  Promise.all([
+    fetch(`${BASE}/eventosDeputado?idDeputado=${dep.id}&dataInicio=${dataIniStr}`)
+      .then(r => r.json())
+      .catch(() => ({ dados: [] })),
+    fetch(`${BASE}/deputados/${dep.id}/votacoes`)
+      .then(r => r.json())
+      .catch(() => ({ dados: [] }))
+  ]).then(([eventos, votacoes]) => {
+    const totalEventos = eventos.dados ? eventos.dados.length : 0;
+    const totalVotacoes = votacoes.dados ? votacoes.dados.length : 0;
+
+    setTimeout(() => {
+      desenharGrafico(totalEventos, totalVotacoes);
+    }, 100);
+  });
+}
+
+/* ==== DESENHAR GRÁFICO ==== */
+function desenharGrafico(eventos, votacoes) {
+  const ctx = document.getElementById('grafico').getContext('2d');
+
+  if (chart) {
+    chart.destroy();
+  }
+
+  chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Eventos', 'Votações'],
+      datasets: [{
+        label: 'Quantidade',
+        data: [eventos, votacoes],
+        backgroundColor: ['#4CAF50', '#2196F3']
+      }]
+    },
+    options: {
+      responsive: false,
+      scales: {
+        y: {
+          beginAtZero: true
+        }
+      }
+    }
+  });
+}
+</script>
+
+</body>
+</html>
