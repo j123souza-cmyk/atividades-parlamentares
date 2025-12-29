@@ -3,38 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <title>Atividades Parlamentares</title>
-
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
 <style>
 body { font-family: Arial, sans-serif; margin: 16px; }
-h1, h2 { margin-top: 20px; }
-nav button { margin-right: 6px; padding: 8px 12px; cursor: pointer; }
+nav button { margin-right: 6px; padding: 8px; }
 .aba { display: none; }
 .ativa { display: block; }
-
-select { margin-right: 6px; padding: 4px; }
-
-.deputado {
-  display: flex;
-  gap: 10px;
-  border-bottom: 1px solid #ddd;
-  padding: 8px 0;
-  cursor: pointer;
-}
-.deputado img {
-  width: 60px;
-  border-radius: 6px;
-}
-
-table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+.deputado { display: flex; gap: 10px; border-bottom: 1px solid #ddd; padding: 8px; cursor: pointer; }
+.deputado img { width: 60px; border-radius: 6px; }
+select { margin-right: 6px; }
+table { width: 100%; border-collapse: collapse; margin-top: 10px; }
 th, td { border: 1px solid #ccc; padding: 6px; }
 th { background: #f0f0f0; }
-
 canvas { margin-top: 14px; }
-.info { color: #666; font-size: 14px; }
 </style>
 </head>
+
 <body>
 
 <h1>Atividades Parlamentares</h1>
@@ -45,7 +30,6 @@ canvas { margin-top: 14px; }
   <button onclick="mostrar('detalhe')">Detalhes</button>
 </nav>
 
-<!-- FILTROS -->
 <div>
   UF:
   <select id="filtroUF" onchange="aplicarFiltros()">
@@ -58,16 +42,13 @@ canvas { margin-top: 14px; }
   </select>
 </div>
 
-<!-- LISTA -->
 <section id="lista" class="aba ativa">
   <p id="status">Carregando deputados…</p>
   <div id="listaDeputados"></div>
 </section>
 
-<!-- RANKING -->
 <section id="ranking" class="aba">
-  <h2>Ranking de Atividade</h2>
-  <div class="info" id="statusRanking"></div>
+  <p id="statusRanking"></p>
   <table>
     <thead>
       <tr>
@@ -81,16 +62,13 @@ canvas { margin-top: 14px; }
   </table>
 </section>
 
-<!-- DETALHE -->
 <section id="detalhe" class="aba">
   <h2 id="nomeDeputado"></h2>
   <img id="fotoDeputado">
-
   <h3>Eventos por mês</h3>
-  <canvas id="graficoMensal" width="480" height="260"></canvas>
-
+  <canvas id="graficoMensal" width="480" height="250"></canvas>
   <h3>Presença em sessões plenárias (%)</h3>
-  <canvas id="graficoPresenca" width="480" height="260"></canvas>
+  <canvas id="graficoPresenca" width="480" height="250"></canvas>
 </section>
 
 <script>
@@ -99,31 +77,26 @@ let deputados = [];
 let eventosPorDeputado = {};
 let chartMensal = null;
 let chartPresenca = null;
-let carregados = 0;
-const LIMITE = 50;
+const LIMITE = 30;
 
-/* ==== ABAS ==== */
 function mostrar(id) {
   document.querySelectorAll('.aba').forEach(a => a.classList.remove('ativa'));
   document.getElementById(id).classList.add('ativa');
 }
 
-/* ==== DEPUTADOS ==== */
 fetch(`${BASE}/deputados?ordenarPor=nome`)
   .then(r => r.json())
   .then(j => {
     deputados = j.dados;
-    status.remove();
+    document.getElementById('status').remove();
     preencherFiltros();
     aplicarFiltros();
     carregarEventos();
   });
 
-/* ==== FILTROS ==== */
 function preencherFiltros() {
   [...new Set(deputados.map(d => d.siglaUf))].sort()
     .forEach(u => filtroUF.innerHTML += `<option>${u}</option>`);
-
   [...new Set(deputados.map(d => d.siglaPartido))].sort()
     .forEach(p => filtroPartido.innerHTML += `<option>${p}</option>`);
 }
@@ -140,11 +113,10 @@ function aplicarFiltros() {
   atualizarRanking(filtrados);
 }
 
-/* ==== LISTA ==== */
 function renderLista(lista) {
   listaDeputados.innerHTML = "";
   lista.forEach(d => {
-    const div = document.createElement('div');
+    const div = document.createElement("div");
     div.className = "deputado";
     div.innerHTML = `
       <img src="${d.urlFoto}">
@@ -155,26 +127,23 @@ function renderLista(lista) {
   });
 }
 
-/* ==== EVENTOS ==== */
 function carregarEventos() {
-  const f = new Date();
-  const i = new Date(); i.setFullYear(f.getFullYear() - 1);
-  const ini = i.toISOString().slice(0,10);
-  const fim = f.toISOString().slice(0,10);
+  const fim = new Date();
+  const ini = new Date(); ini.setFullYear(fim.getFullYear() - 1);
+  const dIni = ini.toISOString().slice(0,10);
+  const dFim = fim.toISOString().slice(0,10);
 
   deputados.slice(0, LIMITE).forEach(d => {
-    fetch(`${BASE}/deputados/${d.id}/eventos?dataInicio=${ini}&dataFim=${fim}&itens=1000`)
+    fetch(`${BASE}/deputados/${d.id}/eventos?dataInicio=${dIni}&dataFim=${dFim}&itens=1000`)
       .then(r => r.json())
       .then(j => {
         eventosPorDeputado[d.id] = j.dados || [];
-        carregados++;
-        statusRanking.innerText = `Carregando eventos: ${carregados}/${LIMITE}`;
+        statusRanking.innerText = `Carregando eventos (${Object.keys(eventosPorDeputado).length}/${LIMITE})`;
         aplicarFiltros();
       });
   });
 }
 
-/* ==== RANKING ==== */
 function atualizarRanking(lista) {
   rankingBody.innerHTML = "";
 
@@ -205,7 +174,6 @@ function atualizarRanking(lista) {
   });
 }
 
-/* ==== DETALHE ==== */
 function abrirDetalhe(dep) {
   mostrar('detalhe');
   nomeDeputado.innerText = dep.nome;
@@ -213,7 +181,6 @@ function abrirDetalhe(dep) {
 
   const eventos = eventosPorDeputado[dep.id] || [];
 
-  /* GRAFICO MENSAL */
   const meses = Array(12).fill(0);
   eventos.forEach(e => {
     if (e.dataHoraInicio)
@@ -223,41 +190,35 @@ function abrirDetalhe(dep) {
   if (chartMensal) chartMensal.destroy();
   chartMensal = new Chart(graficoMensal, {
     type: 'line',
-    data: { labels: ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'],
-      datasets: [{ label:'Eventos', data: meses, borderColor:'#1976d2', fill:false }]
+    data: {
+      labels: ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'],
+      datasets: [{ label:'Eventos', data: meses }]
     },
-    options:{ responsive:false, scales:{ y:{ beginAtZero:true } } }
+    options: { responsive:false }
   });
 
-  /* PRESENÇA EM SESSÕES */
-  const sessoesDep = eventos.filter(e =>
-    e.descricaoTipo && e.descricaoTipo.toLowerCase().includes("sessão")
+  const sessoes = eventos.filter(e =>
+    e.descricaoTipo && e.descricaoTipo.toLowerCase().includes("sess")
   ).length;
 
-  const maxSessoes = Math.max(
-    ...Object.values(eventosPorDeputado).map(ev =>
-      ev.filter(e => e.descricaoTipo && e.descricaoTipo.toLowerCase().includes("sessão")).length
-    )
-  );
+  let maxSessoes = 0;
+  Object.values(eventosPorDeputado).forEach(ev => {
+    const qt = ev.filter(e =>
+      e.descricaoTipo && e.descricaoTipo.toLowerCase().includes("sess")
+    ).length;
+    if (qt > maxSessoes) maxSessoes = qt;
+  });
 
-  const percentual = maxSessoes ? Math.round((sessoesDep / maxSessoes) * 100) : 0;
+  const perc = maxSessoes ? Math.round((sessoes / maxSessoes) * 100) : 0;
 
   if (chartPresenca) chartPresenca.destroy();
   chartPresenca = new Chart(graficoPresenca, {
     type: 'doughnut',
     data: {
-      labels: ['Presença', 'Ausência relativa'],
-      datasets: [{
-        data: [percentual, 100 - percentual]
-      }]
+      labels: ['Presença', 'Outros'],
+      datasets: [{ data: [perc, 100 - perc] }]
     },
-    options: {
-      responsive:false,
-      plugins: {
-        tooltip: { enabled:true },
-        title: { display:true, text:`${percentual}% de presença em sessões plenárias` }
-      }
-    }
+    options: { responsive:false }
   });
 }
 </script>
