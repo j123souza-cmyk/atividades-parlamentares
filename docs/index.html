@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <title>Atividades Parlamentares</title>
 
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Chart.js (bundle completo) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
   <style>
     body {
@@ -17,12 +17,9 @@
       padding: 8px 12px;
       cursor: pointer;
     }
-    .aba {
-      display: none;
-    }
-    .ativa {
-      display: block;
-    }
+    .aba { display: none; }
+    .ativa { display: block; }
+
     .deputado {
       display: flex;
       gap: 10px;
@@ -34,6 +31,7 @@
       width: 60px;
       border-radius: 6px;
     }
+
     #detalhe img {
       width: 120px;
       border-radius: 8px;
@@ -50,40 +48,40 @@
   <button onclick="mostrar('detalhe')">Detalhes</button>
 </nav>
 
-<!-- LISTA DE DEPUTADOS -->
+<!-- LISTA -->
 <section id="lista" class="aba ativa">
-  <p id="status-lista">Carregando deputados...</p>
+  <p id="status">Carregando deputados...</p>
   <div id="listaDeputados"></div>
 </section>
 
-<!-- DETALHE DO DEPUTADO -->
+<!-- DETALHE -->
 <section id="detalhe" class="aba">
   <h2 id="nomeDeputado"></h2>
-  <img id="fotoDeputado" src="">
+  <img id="fotoDeputado">
   <p><strong>Atividades no último ano</strong></p>
-  <canvas id="grafico" width="400" height="300"></canvas>
+  <canvas id="grafico" width="420" height="300"></canvas>
 </section>
 
 <script>
 const BASE = "https://dadosabertos.camara.leg.br/api/v2";
 let chart = null;
 
-/* ==== CONTROLE DE ABAS ==== */
+/* ==== ABAS ==== */
 function mostrar(id) {
   document.querySelectorAll('.aba').forEach(a => a.classList.remove('ativa'));
   document.getElementById(id).classList.add('ativa');
 }
 
-/* ==== CARREGAR DEPUTADOS ==== */
+/* ==== LISTA DE DEPUTADOS ==== */
 fetch(`${BASE}/deputados?ordem=ASC&ordenarPor=nome`)
   .then(r => r.json())
   .then(json => {
-    document.getElementById('status-lista').remove();
+    document.getElementById('status').remove();
     const lista = document.getElementById('listaDeputados');
 
     json.dados.forEach(dep => {
       const div = document.createElement('div');
-      div.className = "deputado";
+      div.className = 'deputado';
       div.innerHTML = `
         <img src="${dep.urlFoto}">
         <div>
@@ -96,63 +94,27 @@ fetch(`${BASE}/deputados?ordem=ASC&ordenarPor=nome`)
     });
   });
 
-/* ==== ABRIR DETALHE + CARREGAR DADOS ==== */
+/* ==== DETALHES ==== */
 function abrirDetalhe(dep) {
   mostrar('detalhe');
+  nomeDeputado.innerText = dep.nome;
+  fotoDeputado.src = dep.urlFoto;
 
-  document.getElementById('nomeDeputado').innerText = dep.nome;
-  document.getElementById('fotoDeputado').src = dep.urlFoto;
+  const fim = new Date();
+  const inicio = new Date();
+  inicio.setFullYear(fim.getFullYear() - 1);
 
-  const dataInicio = new Date();
-  dataInicio.setFullYear(dataInicio.getFullYear() - 1);
-  const dataIniStr = dataInicio.toISOString().slice(0, 10);
+  const dataIni = inicio.toISOString().slice(0,10);
+  const dataFim = fim.toISOString().slice(0,10);
 
   Promise.all([
-    fetch(`${BASE}/eventosDeputado?idDeputado=${dep.id}&dataInicio=${dataIniStr}`)
+    fetch(`${BASE}/deputados/${dep.id}/eventos?dataInicio=${dataIni}&dataFim=${dataFim}`)
       .then(r => r.json())
       .catch(() => ({ dados: [] })),
+
     fetch(`${BASE}/deputados/${dep.id}/votacoes`)
       .then(r => r.json())
       .catch(() => ({ dados: [] }))
   ]).then(([eventos, votacoes]) => {
-    const totalEventos = eventos.dados ? eventos.dados.length : 0;
-    const totalVotacoes = votacoes.dados ? votacoes.dados.length : 0;
-
-    setTimeout(() => {
-      desenharGrafico(totalEventos, totalVotacoes);
-    }, 100);
-  });
-}
-
-/* ==== DESENHAR GRÁFICO ==== */
-function desenharGrafico(eventos, votacoes) {
-  const ctx = document.getElementById('grafico').getContext('2d');
-
-  if (chart) {
-    chart.destroy();
-  }
-
-  chart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: ['Eventos', 'Votações'],
-      datasets: [{
-        label: 'Quantidade',
-        data: [eventos, votacoes],
-        backgroundColor: ['#4CAF50', '#2196F3']
-      }]
-    },
-    options: {
-      responsive: false,
-      scales: {
-        y: {
-          beginAtZero: true
-        }
-      }
-    }
-  });
-}
-</script>
-
-</body>
-</html>
+    const totalEventos = eventos.dados?.length ?? 0;
+    const
