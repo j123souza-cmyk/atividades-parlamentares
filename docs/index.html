@@ -16,6 +16,7 @@ select { margin-right: 6px; }
 table { width: 100%; border-collapse: collapse; margin-top: 10px; }
 th, td { border: 1px solid #ccc; padding: 6px; }
 th { background: #f0f0f0; }
+.info { color: #555; font-size: 14px; }
 canvas { margin-top: 14px; }
 </style>
 </head>
@@ -48,7 +49,7 @@ canvas { margin-top: 14px; }
 </section>
 
 <section id="ranking" class="aba">
-  <p id="statusRanking"></p>
+  <p class="info" id="statusRanking"></p>
   <table>
     <thead>
       <tr>
@@ -65,10 +66,13 @@ canvas { margin-top: 14px; }
 <section id="detalhe" class="aba">
   <h2 id="nomeDeputado"></h2>
   <img id="fotoDeputado">
+  <p class="info" id="infoDetalhe"></p>
+
   <h3>Eventos por mês</h3>
-  <canvas id="graficoMensal" width="480" height="250"></canvas>
+  <canvas id="graficoMensal" width="480" height="240"></canvas>
+
   <h3>Presença em sessões plenárias (%)</h3>
-  <canvas id="graficoPresenca" width="480" height="250"></canvas>
+  <canvas id="graficoPresenca" width="480" height="240"></canvas>
 </section>
 
 <script>
@@ -84,11 +88,12 @@ function mostrar(id) {
   document.getElementById(id).classList.add('ativa');
 }
 
+/* ==== CARREGAR DEPUTADOS ==== */
 fetch(`${BASE}/deputados?ordenarPor=nome`)
   .then(r => r.json())
   .then(j => {
     deputados = j.dados;
-    document.getElementById('status').remove();
+    status.remove();
     preencherFiltros();
     aplicarFiltros();
     carregarEventos();
@@ -101,6 +106,7 @@ function preencherFiltros() {
     .forEach(p => filtroPartido.innerHTML += `<option>${p}</option>`);
 }
 
+/* ==== FILTROS ==== */
 function aplicarFiltros() {
   const uf = filtroUF.value;
   const p = filtroPartido.value;
@@ -113,20 +119,29 @@ function aplicarFiltros() {
   atualizarRanking(filtrados);
 }
 
+/* ==== LISTA ==== */
 function renderLista(lista) {
   listaDeputados.innerHTML = "";
   lista.forEach(d => {
+    const ev = eventosPorDeputado[d.id];
+    const statusTxt = ev ? `${ev.length} eventos` : "Aguardando dados…";
+
     const div = document.createElement("div");
     div.className = "deputado";
     div.innerHTML = `
       <img src="${d.urlFoto}">
-      <div><strong>${d.nome}</strong><br>${d.siglaPartido} - ${d.siglaUf}</div>
+      <div>
+        <strong>${d.nome}</strong><br>
+        ${d.siglaPartido} - ${d.siglaUf}<br>
+        <span class="info">${statusTxt}</span>
+      </div>
     `;
     div.onclick = () => abrirDetalhe(d);
     listaDeputados.appendChild(div);
   });
 }
 
+/* ==== EVENTOS ==== */
 function carregarEventos() {
   const fim = new Date();
   const ini = new Date(); ini.setFullYear(fim.getFullYear() - 1);
@@ -138,17 +153,26 @@ function carregarEventos() {
       .then(r => r.json())
       .then(j => {
         eventosPorDeputado[d.id] = j.dados || [];
-        statusRanking.innerText = `Carregando eventos (${Object.keys(eventosPorDeputado).length}/${LIMITE})`;
+        statusRanking.innerText =
+          `Deputados com dados carregados: ${Object.keys(eventosPorDeputado).length} de ${LIMITE}`;
         aplicarFiltros();
       });
   });
 }
 
+/* ==== RANKING (SEM ZEROS FALSOS) ==== */
 function atualizarRanking(lista) {
   rankingBody.innerHTML = "";
 
-  const rank = lista
-    .filter(d => eventosPorDeputado[d.id])
+  const carregados = lista.filter(d => eventosPorDeputado[d.id]);
+
+  if (!carregados.length) {
+    rankingBody.innerHTML =
+      `<tr><td colspan="4">Carregando dados reais…</td></tr>`;
+    return;
+  }
+
+  const ranking = carregados
     .map(d => ({
       nome: d.nome,
       partido: d.siglaPartido,
@@ -157,12 +181,7 @@ function atualizarRanking(lista) {
     .sort((a,b) => b.total - a.total)
     .slice(0,20);
 
-  if (!rank.length) {
-    rankingBody.innerHTML = `<tr><td colspan="4">Carregando…</td></tr>`;
-    return;
-  }
-
-  rank.forEach((r,i) => {
+  ranking.forEach((r,i) => {
     rankingBody.innerHTML += `
       <tr>
         <td>${i+1}</td>
@@ -174,12 +193,18 @@ function atualizarRanking(lista) {
   });
 }
 
+/* ==== DETALHE ==== */
 function abrirDetalhe(dep) {
   mostrar('detalhe');
   nomeDeputado.innerText = dep.nome;
   fotoDeputado.src = dep.urlFoto;
 
-  const eventos = eventosPorDeputado[dep.id] || [];
+  const eventos = eventosPorDeputado[dep.id];
+  if (!eventos) {
+    infoDetalhe.innerText = "Dados deste deputado ainda não foram carregados.";
+    return;
+  }
+  infoDetalhe.innerText = "";
 
   const meses = Array(12).fill(0);
   eventos.forEach(e => {
@@ -190,32 +215,30 @@ function abrirDetalhe(dep) {
   if (chartMensal) chartMensal.destroy();
   chartMensal = new Chart(graficoMensal, {
     type: 'line',
-    data: {
-      labels: ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'],
-      datasets: [{ label:'Eventos', data: meses }]
-    },
+    data: { labels: ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'],
+            datasets: [{ label:'Eventos', data: meses }] },
     options: { responsive:false }
   });
 
-  const sessoes = eventos.filter(e =>
+  const sessDep = eventos.filter(e =>
     e.descricaoTipo && e.descricaoTipo.toLowerCase().includes("sess")
   ).length;
 
-  let maxSessoes = 0;
+  let maxSess = 0;
   Object.values(eventosPorDeputado).forEach(ev => {
     const qt = ev.filter(e =>
       e.descricaoTipo && e.descricaoTipo.toLowerCase().includes("sess")
     ).length;
-    if (qt > maxSessoes) maxSessoes = qt;
+    if (qt > maxSess) maxSess = qt;
   });
 
-  const perc = maxSessoes ? Math.round((sessoes / maxSessoes) * 100) : 0;
+  const perc = maxSess ? Math.round((sessDep / maxSess) * 100) : 0;
 
   if (chartPresenca) chartPresenca.destroy();
   chartPresenca = new Chart(graficoPresenca, {
     type: 'doughnut',
     data: {
-      labels: ['Presença', 'Outros'],
+      labels: ['Presença', 'Diferença relativa'],
       datasets: [{ data: [perc, 100 - perc] }]
     },
     options: { responsive:false }
