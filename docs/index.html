@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>Atividades Parlamentares</title>
 
-  <!-- Chart.js (bundle completo) -->
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
   <style>
@@ -66,7 +66,7 @@
 const BASE = "https://dadosabertos.camara.leg.br/api/v2";
 let chart = null;
 
-/* ==== ABAS ==== */
+/* ==== CONTROLE DE ABAS ==== */
 function mostrar(id) {
   document.querySelectorAll('.aba').forEach(a => a.classList.remove('ativa'));
   document.getElementById(id).classList.add('ativa');
@@ -94,34 +94,34 @@ fetch(`${BASE}/deputados?ordem=ASC&ordenarPor=nome`)
     });
   });
 
-/* ==== DETALHES ==== */
+/* ==== DETALHES DO DEPUTADO ==== */
 function abrirDetalhe(dep) {
   mostrar('detalhe');
   nomeDeputado.innerText = dep.nome;
   fotoDeputado.src = dep.urlFoto;
 
-  const fim = new Date();
+  const hoje = new Date();
   const inicio = new Date();
-  inicio.setFullYear(fim.getFullYear() - 1);
+  inicio.setFullYear(hoje.getFullYear() - 1);
 
   const dataIni = inicio.toISOString().slice(0,10);
-  const dataFim = fim.toISOString().slice(0,10);
+  const dataFim = hoje.toISOString().slice(0,10);
 
   Promise.all([
     fetch(`${BASE}/deputados/${dep.id}/eventos?dataInicio=${dataIni}&dataFim=${dataFim}`)
       .then(r => r.json())
       .catch(() => ({ dados: [] })),
 
-    fetch(`${BASE}/deputados/${dep.id}/votacoes`)
+    // ✅ ENDPOINT CORRETO DE VOTAÇÕES
+    fetch(`${BASE}/votacoes?deputadoId=${dep.id}`)
       .then(r => r.json())
       .catch(() => ({ dados: [] }))
-  ]).then(([eventos, votacoes]) => {
+  ])
+  .then(([eventos, votacoes]) => {
     const totalEventos = eventos.dados?.length ?? 0;
     const totalVotacoes = votacoes.dados?.length ?? 0;
 
-    setTimeout(() => {
-      desenharGrafico(totalEventos, totalVotacoes);
-    }, 100);
+    desenharGrafico(totalEventos, totalVotacoes);
   });
 }
 
