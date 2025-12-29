@@ -3,19 +3,28 @@
 <head>
 <meta charset="UTF-8">
 <title>Atividades Parlamentares</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 body { font-family: Arial, sans-serif; margin: 16px; }
 nav button { margin-right: 6px; padding: 8px; }
 .aba { display: none; }
 .ativa { display: block; }
-.deputado { display: flex; gap: 10px; border-bottom: 1px solid #ddd; padding: 8px; cursor: pointer; }
+.filtros select, .filtros input { margin-right: 6px; padding: 4px; }
+.deputado {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid #ddd;
+  padding: 8px;
+  cursor: pointer;
+}
 .deputado img { width: 60px; border-radius: 6px; }
 table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-th, td { border: 1px solid #ccc; padding: 6px; }
+th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
 th { background: #f0f0f0; }
-#log { background:#f8f8f8; border:1px solid #ccc; padding:8px; margin-top:10px; font-size:12px }
+canvas { max-width: 500px; margin-top: 20px; }
 </style>
 </head>
 
@@ -28,9 +37,19 @@ th { background: #f0f0f0; }
   <button onclick="mostrar('ranking')">Ranking</button>
 </nav>
 
+<div class="filtros">
+  <input type="text" id="fNome" placeholder="Nome" oninput="aplicarFiltros()">
+  <select id="fPartido" onchange="aplicarFiltros()">
+    <option value="">Partido</option>
+  </select>
+  <select id="fUf" onchange="aplicarFiltros()">
+    <option value="">UF</option>
+  </select>
+</div>
+
 <section id="lista" class="aba ativa">
-  <p id="status">Carregando deputados…</p>
   <div id="listaDeputados"></div>
+  <canvas id="grafico"></canvas>
 </section>
 
 <section id="ranking" class="aba">
@@ -39,106 +58,118 @@ th { background: #f0f0f0; }
       <tr>
         <th>#</th>
         <th>Deputado</th>
-        <th>Eventos</th>
+        <th>Partido</th>
+        <th>Proposições (12 meses)</th>
       </tr>
     </thead>
     <tbody id="rankingBody"></tbody>
   </table>
 </section>
 
-<div id="log"><strong>Log:</strong><br></div>
-
 <script>
 const API = "https://dadosabertos.camara.leg.br/api/v2";
-const PROXY = "https://api.allorigins.win/raw?url=";
-let deputados = [];
-let eventos = {};
-const LIMITE = 10;
+const hoje = new Date();
+const umAnoAtras = new Date();
+umAnoAtras.setFullYear(hoje.getFullYear() - 1);
 
-function log(msg) {
-  document.getElementById("log").innerHTML += msg + "<br>";
-}
+let deputados = [];
+let proposicoes = {};
+let grafico = null;
 
 function mostrar(id) {
   document.querySelectorAll('.aba').forEach(a => a.classList.remove('ativa'));
   document.getElementById(id).classList.add('ativa');
 }
 
-async function fetchSeguro(url) {
-  try {
-    log("Tentando direto: " + url);
-    const r = await fetch(url, { headers: { 'Accept': 'application/json' }});
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    return await r.json();
-  } catch {
-    log("Falhou direto, usando proxy CORS");
-    const r = await fetch(PROXY + encodeURIComponent(url));
-    return await r.json();
-  }
+async function carregarDeputados() {
+  const r = await fetch(`${API}/deputados?ordenarPor=nome&itens=100`);
+  const j = await r.json();
+  deputados = j.dados;
+  preencherFiltros();
+  carregarProposicoes();
 }
 
-/* === INÍCIO === */
-(async () => {
-  try {
-    const depJson = await fetchSeguro(`${API}/deputados?ordenarPor=nome&itens=20`);
-    deputados = depJson.dados || [];
+function preencherFiltros() {
+  const partidos = [...new Set(deputados.map(d => d.siglaPartido))].sort();
+  const ufs = [...new Set(deputados.map(d => d.siglaUf))].sort();
 
-    const statusEl = document.getElementById("status");
-    if (statusEl) statusEl.remove();
+  partidos.forEach(p => fPartido.innerHTML += `<option>${p}</option>`);
+  ufs.forEach(u => fUf.innerHTML += `<option>${u}</option>`);
+}
 
-    renderLista();
-
-    for (let i = 0; i < LIMITE; i++) {
-      const d = deputados[i];
-      log("Buscando eventos de " + d.nome);
-
-      const evJson = await fetchSeguro(`${API}/deputados/${d.id}/eventos?itens=100`);
-      eventos[d.id] = evJson.dados || [];
-
-      renderLista();
-      renderRanking();
-    }
-
-  } catch (e) {
-    log("ERRO CRÍTICO: " + e.message);
+async function carregarProposicoes() {
+  for (const d of deputados) {
+    const url = `${API}/proposicoes?idAutor=${d.id}&dataInicio=${umAnoAtras.toISOString().split('T')[0]}&itens=100`;
+    const r = await fetch(url);
+    const j = await r.json();
+    proposicoes[d.id] = j.dados.length;
   }
-})();
+  aplicarFiltros();
+}
 
-function renderLista() {
+function aplicarFiltros() {
+  const nome = fNome.value.toLowerCase();
+  const partido = fPartido.value;
+  const uf = fUf.value;
+
+  const filtrados = deputados.filter(d =>
+    d.nome.toLowerCase().includes(nome) &&
+    (partido === "" || d.siglaPartido === partido) &&
+    (uf === "" || d.siglaUf === uf)
+  );
+
+  renderLista(filtrados);
+  renderRanking(filtrados);
+}
+
+function renderLista(lista) {
   listaDeputados.innerHTML = "";
-  deputados.slice(0, LIMITE).forEach(d => {
-    const total = eventos[d.id];
+  lista.forEach(d => {
     listaDeputados.innerHTML += `
-      <div class="deputado">
+      <div class="deputado" onclick="mostrarGrafico('${d.id}','${d.nome}')">
         <img src="${d.urlFoto}">
         <div>
           <strong>${d.nome}</strong><br>
-          ${total ? total.length + " eventos" : "Carregando…"}
+          ${d.siglaPartido} - ${d.siglaUf}<br>
+          ${proposicoes[d.id]} proposições
         </div>
       </div>
     `;
   });
 }
 
-function renderRanking() {
+function renderRanking(lista) {
   rankingBody.innerHTML = "";
+  lista
+    .map(d => ({ ...d, total: proposicoes[d.id] }))
+    .sort((a,b) => b.total - a.total)
+    .forEach((d,i) => {
+      rankingBody.innerHTML += `
+        <tr>
+          <td>${i+1}</td>
+          <td>${d.nome}</td>
+          <td>${d.siglaPartido}</td>
+          <td>${d.total}</td>
+        </tr>
+      `;
+    });
+}
 
-  const rank = deputados
-    .slice(0, LIMITE)
-    .filter(d => eventos[d.id])
-    .map(d => ({ nome: d.nome, total: eventos[d.id].length }))
-    .sort((a,b) => b.total - a.total);
-
-  rank.forEach((r,i) => {
-    rankingBody.innerHTML += `
-      <tr>
-        <td>${i+1}</td>
-        <td>${r.nome}</td>
-        <td>${r.total}</td>
-      </tr>
-    `;
+function mostrarGrafico(id, nome) {
+  if (grafico) grafico.destroy();
+  grafico = new Chart(document.getElementById("grafico"), {
+    type: "bar",
+    data: {
+      labels: ["Proposições (12 meses)"],
+      datasets: [{
+        label: nome,
+        data: [proposicoes[id]]
+      }]
+    }
   });
 }
+
+carregarDeputados();
 </script>
 
 </body>
