@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <title>Atividades Parlamentares</title>
 
-  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
   <style>
@@ -48,13 +47,11 @@
   <button onclick="mostrar('detalhe')">Detalhes</button>
 </nav>
 
-<!-- LISTA -->
 <section id="lista" class="aba ativa">
   <p id="status">Carregando deputados...</p>
   <div id="listaDeputados"></div>
 </section>
 
-<!-- DETALHE -->
 <section id="detalhe" class="aba">
   <h2 id="nomeDeputado"></h2>
   <img id="fotoDeputado">
@@ -66,13 +63,12 @@
 const BASE = "https://dadosabertos.camara.leg.br/api/v2";
 let chart = null;
 
-/* ==== CONTROLE DE ABAS ==== */
 function mostrar(id) {
   document.querySelectorAll('.aba').forEach(a => a.classList.remove('ativa'));
   document.getElementById(id).classList.add('ativa');
 }
 
-/* ==== LISTA DE DEPUTADOS ==== */
+/* LISTA */
 fetch(`${BASE}/deputados?ordem=ASC&ordenarPor=nome`)
   .then(r => r.json())
   .then(json => {
@@ -94,38 +90,34 @@ fetch(`${BASE}/deputados?ordem=ASC&ordenarPor=nome`)
     });
   });
 
-/* ==== DETALHES DO DEPUTADO ==== */
+/* DETALHE */
 function abrirDetalhe(dep) {
   mostrar('detalhe');
   nomeDeputado.innerText = dep.nome;
   fotoDeputado.src = dep.urlFoto;
 
-  const hoje = new Date();
+  const fim = new Date();
   const inicio = new Date();
-  inicio.setFullYear(hoje.getFullYear() - 1);
+  inicio.setFullYear(fim.getFullYear() - 1);
 
   const dataIni = inicio.toISOString().slice(0,10);
-  const dataFim = hoje.toISOString().slice(0,10);
+  const dataFim = fim.toISOString().slice(0,10);
 
-  Promise.all([
-    fetch(`${BASE}/deputados/${dep.id}/eventos?dataInicio=${dataIni}&dataFim=${dataFim}`)
-      .then(r => r.json())
-      .catch(() => ({ dados: [] })),
+  fetch(`${BASE}/deputados/${dep.id}/eventos?dataInicio=${dataIni}&dataFim=${dataFim}&itens=1000`)
+    .then(r => r.json())
+    .then(json => {
+      const eventos = json.dados || [];
 
-    // ✅ ENDPOINT CORRETO DE VOTAÇÕES
-    fetch(`${BASE}/votacoes?deputadoId=${dep.id}`)
-      .then(r => r.json())
-      .catch(() => ({ dados: [] }))
-  ])
-  .then(([eventos, votacoes]) => {
-    const totalEventos = eventos.dados?.length ?? 0;
-    const totalVotacoes = votacoes.dados?.length ?? 0;
+      const totalEventos = eventos.length;
+      const totalVotacoes = eventos.filter(
+        e => e.tipoEvento?.descricao === "Votação"
+      ).length;
 
-    desenharGrafico(totalEventos, totalVotacoes);
-  });
+      desenharGrafico(totalEventos, totalVotacoes);
+    });
 }
 
-/* ==== GRÁFICO ==== */
+/* GRÁFICO */
 function desenharGrafico(eventos, votacoes) {
   const ctx = document.getElementById('grafico');
 
