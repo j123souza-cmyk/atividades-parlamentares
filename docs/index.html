@@ -117,4 +117,42 @@ function abrirDetalhe(dep) {
       .catch(() => ({ dados: [] }))
   ]).then(([eventos, votacoes]) => {
     const totalEventos = eventos.dados?.length ?? 0;
-    const
+    const totalVotacoes = votacoes.dados?.length ?? 0;
+
+    setTimeout(() => {
+      desenharGrafico(totalEventos, totalVotacoes);
+    }, 100);
+  });
+}
+
+/* ==== GRÁFICO ==== */
+function desenharGrafico(eventos, votacoes) {
+  const ctx = document.getElementById('grafico');
+
+  if (chart) chart.destroy();
+
+  chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Eventos', 'Votações'],
+      datasets: [{
+        label: 'Quantidade',
+        data: [eventos, votacoes],
+        backgroundColor: ['#4CAF50', '#2196F3']
+      }]
+    },
+    options: {
+      responsive: false,
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { precision: 0 }
+        }
+      }
+    }
+  });
+}
+</script>
+
+</body>
+</html>
