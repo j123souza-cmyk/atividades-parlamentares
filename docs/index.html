@@ -17,7 +17,7 @@ table { width: 100%; border-collapse: collapse; margin-top: 10px; }
 th, td { border: 1px solid #ccc; padding: 6px; }
 th { background: #f0f0f0; }
 .info { color: #555; font-size: 14px; }
-canvas { margin-top: 14px; }
+#log { background:#f8f8f8; border:1px solid #ccc; padding:8px; margin-top:10px; font-size:12px }
 </style>
 </head>
 
@@ -28,20 +28,7 @@ canvas { margin-top: 14px; }
 <nav>
   <button onclick="mostrar('lista')">Deputados</button>
   <button onclick="mostrar('ranking')">Ranking</button>
-  <button onclick="mostrar('detalhe')">Detalhes</button>
 </nav>
-
-<div>
-  UF:
-  <select id="filtroUF" onchange="aplicarFiltros()">
-    <option value="">Todos</option>
-  </select>
-
-  Partido:
-  <select id="filtroPartido" onchange="aplicarFiltros()">
-    <option value="">Todos</option>
-  </select>
-</div>
 
 <section id="lista" class="aba ativa">
   <p id="status">Carregando deputados…</p>
@@ -49,13 +36,11 @@ canvas { margin-top: 14px; }
 </section>
 
 <section id="ranking" class="aba">
-  <p class="info" id="statusRanking"></p>
   <table>
     <thead>
       <tr>
         <th>#</th>
         <th>Deputado</th>
-        <th>Partido</th>
         <th>Eventos</th>
       </tr>
     </thead>
@@ -63,188 +48,92 @@ canvas { margin-top: 14px; }
   </table>
 </section>
 
-<section id="detalhe" class="aba">
-  <h2 id="nomeDeputado"></h2>
-  <img id="fotoDeputado">
-  <p class="info" id="infoDetalhe"></p>
-
-  <h3>Eventos por mês</h3>
-  <canvas id="graficoMensal" width="480" height="240"></canvas>
-
-  <h3>Presença em sessões plenárias (%)</h3>
-  <canvas id="graficoPresenca" width="480" height="240"></canvas>
-</section>
+<div id="log"><strong>Log:</strong><br></div>
 
 <script>
-const BASE = "https://dadosabertos.camara.leg.br/api/v2";
+const API = "https://dadosabertos.camara.leg.br/api/v2";
+const PROXY = "https://api.allorigins.win/raw?url=";
 let deputados = [];
-let eventosPorDeputado = {};
-let chartMensal = null;
-let chartPresenca = null;
-const LIMITE = 20;
+let eventos = {};
+const LIMITE = 10;
 
-/* ==== ABAS ==== */
+function log(msg) {
+  document.getElementById("log").innerHTML += msg + "<br>";
+}
+
 function mostrar(id) {
   document.querySelectorAll('.aba').forEach(a => a.classList.remove('ativa'));
   document.getElementById(id).classList.add('ativa');
 }
 
-/* ==== INÍCIO ==== */
-fetch(`${BASE}/deputados?ordenarPor=nome`)
-  .then(r => r.json())
-  .then(j => {
-    deputados = j.dados;
+async function fetchSeguro(url) {
+  try {
+    log("Tentando direto: " + url);
+    const r = await fetch(url, { headers: { 'Accept': 'application/json' }});
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return await r.json();
+  } catch (e) {
+    log("Falhou direto, usando proxy CORS");
+    const r = await fetch(PROXY + encodeURIComponent(url));
+    return await r.json();
+  }
+}
+
+/* === INÍCIO === */
+(async () => {
+  try {
+    const depJson = await fetchSeguro(`${API}/deputados?ordenarPor=nome&itens=20`);
+    deputados = depJson.dados;
     status.remove();
-    preencherFiltros();
-    aplicarFiltros();
-    carregarEventosSequencial();
-  });
+    renderLista();
 
-function preencherFiltros() {
-  [...new Set(deputados.map(d => d.siglaUf))].sort()
-    .forEach(u => filtroUF.innerHTML += `<option>${u}</option>`);
-  [...new Set(deputados.map(d => d.siglaPartido))].sort()
-    .forEach(p => filtroPartido.innerHTML += `<option>${p}</option>`);
-}
+    for (let i = 0; i < LIMITE; i++) {
+      const d = deputados[i];
+      log("Buscando eventos de " + d.nome);
 
-/* ==== FILTROS ==== */
-function aplicarFiltros() {
-  const uf = filtroUF.value;
-  const p = filtroPartido.value;
-
-  const filtrados = deputados
-    .filter(d => !uf || d.siglaUf === uf)
-    .filter(d => !p || d.siglaPartido === p);
-
-  renderLista(filtrados);
-  atualizarRanking(filtrados);
-}
-
-/* ==== LISTA ==== */
-function renderLista(lista) {
-  listaDeputados.innerHTML = "";
-  lista.forEach(d => {
-    const ev = eventosPorDeputado[d.id];
-    const statusTxt = ev ? `${ev.length} eventos` : "Aguardando dados…";
-
-    const div = document.createElement("div");
-    div.className = "deputado";
-    div.innerHTML = `
-      <img src="${d.urlFoto}">
-      <div>
-        <strong>${d.nome}</strong><br>
-        ${d.siglaPartido} - ${d.siglaUf}<br>
-        <span class="info">${statusTxt}</span>
-      </div>
-    `;
-    div.onclick = () => abrirDetalhe(d);
-    listaDeputados.appendChild(div);
-  });
-}
-
-/* ==== EVENTOS SEQUENCIAIS ==== */
-async function carregarEventosSequencial() {
-  const fim = new Date();
-  const ini = new Date(); ini.setFullYear(fim.getFullYear() - 1);
-  const dIni = ini.toISOString().slice(0,10);
-  const dFim = fim.toISOString().slice(0,10);
-
-  for (let i = 0; i < LIMITE; i++) {
-    const d = deputados[i];
-    statusRanking.innerText = `Carregando atividades: ${i+1}/${LIMITE}`;
-
-    try {
-      const r = await fetch(`${BASE}/deputados/${d.id}/eventos?dataInicio=${dIni}&dataFim=${dFim}&itens=1000`);
-      const j = await r.json();
-      eventosPorDeputado[d.id] = j.dados || [];
-    } catch {
-      eventosPorDeputado[d.id] = [];
+      const evJson = await fetchSeguro(`${API}/deputados/${d.id}/eventos?itens=100`);
+      eventos[d.id] = evJson.dados || [];
+      renderLista();
+      renderRanking();
     }
 
-    aplicarFiltros();
-    await new Promise(res => setTimeout(res, 400)); // respiro da API
+  } catch (e) {
+    log("ERRO CRÍTICO: " + e.message);
   }
+})();
 
-  statusRanking.innerText = "Dados carregados com sucesso.";
+function renderLista() {
+  listaDeputados.innerHTML = "";
+  deputados.slice(0, LIMITE).forEach(d => {
+    const total = eventos[d.id]?.length;
+    listaDeputados.innerHTML += `
+      <div class="deputado">
+        <img src="${d.urlFoto}">
+        <div>
+          <strong>${d.nome}</strong><br>
+          ${total !== undefined ? total + " eventos" : "Aguardando dados…"}
+        </div>
+      </div>
+    `;
+  });
 }
 
-/* ==== RANKING ==== */
-function atualizarRanking(lista) {
+function renderRanking() {
   rankingBody.innerHTML = "";
+  const rank = deputados
+    .slice(0, LIMITE)
+    .filter(d => eventos[d.id])
+    .map(d => ({ nome: d.nome, total: eventos[d.id].length }))
+    .sort((a,b) => b.total - a.total);
 
-  const carregados = lista.filter(d => eventosPorDeputado[d.id]);
-  if (!carregados.length) {
-    rankingBody.innerHTML = `<tr><td colspan="4">Carregando dados…</td></tr>`;
-    return;
-  }
-
-  const ranking = carregados
-    .map(d => ({
-      nome: d.nome,
-      partido: d.siglaPartido,
-      total: eventosPorDeputado[d.id].length
-    }))
-    .sort((a,b) => b.total - a.total)
-    .slice(0,20);
-
-  ranking.forEach((r,i) => {
+  rank.forEach((r,i) => {
     rankingBody.innerHTML += `
       <tr>
         <td>${i+1}</td>
         <td>${r.nome}</td>
-        <td>${r.partido}</td>
         <td>${r.total}</td>
       </tr>
     `;
-  });
-}
-
-/* ==== DETALHE ==== */
-function abrirDetalhe(dep) {
-  mostrar('detalhe');
-  nomeDeputado.innerText = dep.nome;
-  fotoDeputado.src = dep.urlFoto;
-
-  const eventos = eventosPorDeputado[dep.id];
-  if (!eventos) {
-    infoDetalhe.innerText = "Dados ainda não carregados.";
-    return;
-  }
-
-  const meses = Array(12).fill(0);
-  eventos.forEach(e => {
-    if (e.dataHoraInicio)
-      meses[new Date(e.dataHoraInicio).getMonth()]++;
-  });
-
-  if (chartMensal) chartMensal.destroy();
-  chartMensal = new Chart(graficoMensal, {
-    type: 'line',
-    data: { labels: ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'],
-      datasets: [{ label:'Eventos', data: meses }] },
-    options: { responsive:false }
-  });
-
-  const sessoesDep = eventos.filter(e =>
-    e.descricaoTipo && e.descricaoTipo.toLowerCase().includes("sess")
-  ).length;
-
-  let maxSess = 0;
-  Object.values(eventosPorDeputado).forEach(ev => {
-    const qt = ev.filter(e =>
-      e.descricaoTipo && e.descricaoTipo.toLowerCase().includes("sess")
-    ).length;
-    if (qt > maxSess) maxSess = qt;
-  });
-
-  const perc = maxSess ? Math.round((sessoesDep / maxSess) * 100) : 0;
-
-  if (chartPresenca) chartPresenca.destroy();
-  chartPresenca = new Chart(graficoPresenca, {
-    type: 'doughnut',
-    data: { labels: ['Presença', 'Diferença'],
-            datasets: [{ data: [perc, 100 - perc] }] },
-    options: { responsive:false }
   });
 }
 </script>
