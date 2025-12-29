@@ -132,4 +132,15 @@ fetch(`${BASE}/votacoes?ordem=DESC&ordenarPor=dataHoraRegistro`)
   .then(r=>r.json())
   .then(j=>{
     document.getElementById('status-vot').remove();
-    const l
+    const l = document.getElementById('lista-vot');
+    j.dados.slice(0,20).forEach(v=>{
+      const d=document.createElement('div');
+      d.className="item";
+      d.textContent = `${v.dataHoraRegistro.slice(0,10)} — ${v.descricao}`;
+      l.appendChild(d);
+    });
+  });
+</script>
+
+</body>
+</html>
