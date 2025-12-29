@@ -3,37 +3,60 @@
 <head>
   <meta charset="UTF-8">
   <title>Atividades Parlamentares</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+    }
+    .deputado {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 8px;
+    }
+    .deputado img {
+      width: 60px;
+      margin-right: 10px;
+      border-radius: 6px;
+    }
+  </style>
 </head>
 <body>
-  <h1>Atividades da Câmara dos Deputados</h1>
-  <p id="status">Carregando dados...</p>
-  <ul id="lista"></ul>
+
+  <h1>Deputados Federais</h1>
+  <p id="status">Carregando deputados...</p>
+
+  <div id="lista"></div>
 
   <script>
-    const hoje = new Date().toISOString().slice(0, 10);
-    const url = `https://dadosabertos.camara.leg.br/api/v2/eventos?dataInicio=${hoje}&dataFim=${hoje}`;
+    const url = "https://dadosabertos.camara.leg.br/api/v2/deputados?ordem=ASC&ordenarPor=nome";
 
     fetch(url)
       .then(res => res.json())
-      .then(dados => {
-        const lista = document.getElementById('lista');
-        document.getElementById('status').remove();
+      .then(data => {
+        const lista = document.getElementById("lista");
+        document.getElementById("status").remove();
 
-        if (!dados.dados.length) {
-          lista.innerHTML = "<li>Não há eventos hoje.</li>";
-          return;
-        }
+        data.dados.forEach(dep => {
+          const div = document.createElement("div");
+          div.className = "deputado";
 
-        dados.dados.forEach(ev => {
-          const li = document.createElement('li');
-          li.innerText = `${ev.descricaoTipo} — ${ev.descricao}`;
-          lista.appendChild(li);
+          div.innerHTML = `
+            <img src="${dep.urlFoto}" alt="Foto">
+            <div>
+              <strong>${dep.nome}</strong><br>
+              ${dep.siglaPartido} - ${dep.siglaUf}
+            </div>
+          `;
+
+          lista.appendChild(div);
         });
       })
       .catch(() => {
-        document.getElementById('status').innerText =
-          "Erro ao carregar os dados da Câmara.";
+        document.getElementById("status").innerText =
+          "Erro ao carregar deputados.";
       });
   </script>
+
 </body>
 </html>
