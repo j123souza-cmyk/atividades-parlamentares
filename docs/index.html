@@ -32,6 +32,7 @@
     .presenca {
       margin: 10px 0;
       font-weight: bold;
+      font-size: 1.05em;
     }
   </style>
 </head>
@@ -172,29 +173,32 @@ function abrirDetalhe(dep) {
 
       presencaTexto.innerText = `Presença no plenário: ${presenca}%`;
 
-      desenharGrafico(totalEventos, plenarios, presenca);
+      desenharGrafico(totalEventos, plenarios);
     });
 }
 
-/* GRÁFICO */
-function desenharGrafico(eventos, plenarios, presenca) {
+/* GRÁFICO (SÓ QUANTIDADES) */
+function desenharGrafico(eventos, plenarios) {
   if (chart) chart.destroy();
 
   chart = new Chart(document.getElementById('grafico'), {
     type: 'bar',
     data: {
-      labels: ['Eventos', 'Plenário', 'Presença (%)'],
+      labels: ['Eventos', 'Atividades no Plenário'],
       datasets: [{
-        label: 'Indicadores',
-        data: [eventos, plenarios, presenca],
-        backgroundColor: ['#4CAF50', '#2196F3', '#FF9800'],
+        label: 'Quantidade',
+        data: [eventos, plenarios],
+        backgroundColor: ['#4CAF50', '#2196F3'],
         minBarLength: 6
       }]
     },
     options: {
       responsive: false,
       scales: {
-        y: { beginAtZero: true, ticks: { precision: 0 } }
+        y: {
+          beginAtZero: true,
+          ticks: { precision: 0 }
+        }
       }
     }
   });
