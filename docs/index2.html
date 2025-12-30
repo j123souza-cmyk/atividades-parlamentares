@@ -49,8 +49,8 @@ async function carregarSessoes() {
   const inicio = new Date();
   inicio.setMonth(fim.getMonth() - meses);
 
-  const dataInicio = inicio.toISOString().slice(0, 10);
-  const dataFim = fim.toISOString().slice(0, 10);
+  const dataInicio = inicio.toISOString().slice(0,10);
+  const dataFim = fim.toISOString().slice(0,10);
 
   let pagina = 1;
   let sessoes = [];
@@ -61,24 +61,19 @@ async function carregarSessoes() {
       `${BASE}/eventos?dataInicio=${dataInicio}&dataFim=${dataFim}` +
       `&ordenarPor=dataHoraInicio&ordem=DESC&pagina=${pagina}&itens=100`
     );
-
     const json = await resp.json();
     const dados = json.dados || [];
     if (!dados.length) break;
 
     for (const ev of dados) {
       const dataEv = new Date(ev.dataHoraInicio);
-      if (dataEv < inicio) {
-        continuar = false;
-        break;
-      }
+      if (dataEv < inicio) { continuar = false; break; }
 
-      const texto = ((ev.titulo || "") + (ev.descricao || "")).toLowerCase();
-      if (texto.includes("sessão") && texto.includes("deliberativa")) {
+      const t = ((ev.titulo||"") + (ev.descricao||"")).toLowerCase();
+      if (t.includes("sessão") && t.includes("deliberativa")) {
         sessoes.push(ev);
       }
     }
-
     pagina++;
   }
 
@@ -95,13 +90,11 @@ async function carregarSessoes() {
 function criarSessao(ev) {
   const div = document.createElement("div");
   div.className = "evento";
-
   div.innerHTML = `
     <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong><br>
     Sessão Deliberativa
     <div id="det-${ev.id}" class="detalhe oculto"></div>
   `;
-
   div.onclick = () => abrirSessao(ev);
   lista.appendChild(div);
 }
@@ -116,8 +109,8 @@ function abrirSessao(ev) {
     box.classList.add("oculto");
     return;
   }
-
   box.classList.remove("oculto");
+
   if (box.dataset.carregado) return;
 
   box.innerHTML = "Carregando votações…";
@@ -131,7 +124,7 @@ function abrirSessao(ev) {
 /* =====================
    MONTAR VOTAÇÕES
 ===================== */
-function montarVotacoes(ev, votacoes, box) {
+function montarVotacoes(ev, listaVotacoes, box) {
 
   let html = `
     <strong>Sessão para votação de propostas legislativas</strong><br><br>
@@ -139,7 +132,7 @@ function montarVotacoes(ev, votacoes, box) {
     <strong>Início:</strong> ${new Date(ev.dataHoraInicio).toLocaleString()}<br><br>
   `;
 
-  if (!votacoes.length) {
+  if (!listaVotacoes.length) {
     box.innerHTML = html + "Nenhuma votação registrada.";
     box.dataset.carregado = "1";
     return;
@@ -148,16 +141,22 @@ function montarVotacoes(ev, votacoes, box) {
   html += "<strong>Votações realizadas:</strong><br><br>";
   box.innerHTML = html;
 
-  votacoes.forEach(v => {
-    if (!v.proposicoesAfetadas?.length) return;
+  Promise.all(
+    listaVotacoes.map(v =>
+      fetch(`${BASE}/votacoes/${v.id}`)
+        .then(r => r.json())
+        .then(j => j.dados)
+        .catch(() => null)
+    )
+  ).then(votacoes => {
 
-    v.proposicoesAfetadas.forEach(p => {
+    votacoes.forEach(v => {
+      if (!v || !v.proposicoesAfetadas?.length) return;
 
-      const textoResultado = (v.resultado || v.descricao || "");
+      const texto = (v.resultado || v.descricao || "");
 
-      const extrair = (label) => {
-        const r = new RegExp(label + "\\s*:?\\s*(\\d+)", "i");
-        const m = textoResultado.match(r);
+      const extrair = lbl => {
+        const m = texto.match(new RegExp(lbl+"\\s*:?\\s*(\\d+)", "i"));
         return m ? parseInt(m[1]) : null;
       };
 
@@ -166,25 +165,24 @@ function montarVotacoes(ev, votacoes, box) {
       const abst = extrair("Abstenção");
       const total = extrair("Total");
 
-      box.innerHTML += `
-        ➡️ <strong>${p.siglaTipo} ${p.numero}/${p.ano}</strong><br>
-        ${p.ementa || "Sem ementa"}<br>
-        <em>Resultado:</em> ${textoResultado || "Não informado"}<br>
-        <em>Tipo de votação:</em> Nominal<br>
-        ${sim !== null || nao !== null || abst !== null ? `
-          <div class="placar">
-            Sim: ${sim ?? 0};
-            Não: ${nao ?? 0};
-            Abstenção: ${abst ?? 0};
-            Total: ${total ?? ((sim??0)+(nao??0)+(abst??0))}.
-          </div>
-        ` : ""}
-        <br>
-      `;
+      v.proposicoesAfetadas.forEach(p => {
+        box.innerHTML += `
+          ➡️ <strong>${p.siglaTipo} ${p.numero}/${p.ano}</strong><br>
+          ${p.ementa || "Sem ementa"}<br>
+          <em>Resultado:</em> ${texto || "Não informado"}<br>
+          <em>Tipo de votação:</em> Nominal<br>
+          ${sim!==null ? `
+            <div class="placar">
+              Sim: ${sim}; Não: ${nao??0}; Abstenção: ${abst??0};
+              Total: ${total ?? (sim+(nao??0)+(abst??0))}.
+            </div>` : ""}
+          <br>
+        `;
+      });
     });
-  });
 
-  box.dataset.carregado = "1";
+    box.dataset.carregado = "1";
+  });
 }
 
 /* =====================
