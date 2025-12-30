@@ -6,17 +6,27 @@
 
 <style>
 body { font-family: Arial, sans-serif; margin: 20px; }
+#controles { margin-bottom: 15px; }
 .evento { padding: 10px; border-bottom: 1px solid #ccc; cursor: pointer; }
 .evento:hover { background: #f2f2f2; }
 .detalhe { margin-top: 8px; padding: 10px; background: #fafafa; border-left: 3px solid #005ea8; }
 .oculto { display: none; }
-#status { font-weight: bold; margin-bottom: 12px; }
+#status { font-weight: bold; margin-bottom: 10px; }
 </style>
 </head>
 
 <body>
 
 <h2>Últimas Sessões do Plenário</h2>
+
+<div id="controles">
+  Período:
+  <select id="periodo">
+    <option value="3">Últimos 3 meses</option>
+    <option value="6">Últimos 6 meses</option>
+    <option value="12" selected>Últimos 12 meses</option>
+  </select>
+</div>
 
 <div id="status">Carregando sessões…</div>
 <div id="lista"></div>
@@ -25,35 +35,44 @@ body { font-family: Arial, sans-serif; margin: 20px; }
 const BASE = "https://dadosabertos.camara.leg.br/api/v2";
 const status = document.getElementById("status");
 const lista = document.getElementById("lista");
-
-/* Período amplo */
-const fim = new Date();
-const inicio = new Date();
-inicio.setMonth(fim.getMonth() - 4);
-
-const dataInicio = inicio.toISOString().slice(0,10);
-const dataFim = fim.toISOString().slice(0,10);
+const seletor = document.getElementById("periodo");
 
 /* =====================
-   BUSCAR SESSÕES
+   CARREGAR SESSÕES
 ===================== */
-fetch(`${BASE}/eventos?dataInicio=${dataInicio}&dataFim=${dataFim}&ordenarPor=dataHoraInicio&ordem=DESC&itens=300`)
-.then(r => r.json())
-.then(json => {
-  const sessoes = (json.dados || []).filter(e => {
-    const t = ((e.titulo || "") + (e.descricao || "")).toLowerCase();
-    return t.includes("sessão") && t.includes("deliberativa");
-  });
+function carregarSessoes() {
+  lista.innerHTML = "";
+  status.innerText = "Carregando sessões…";
 
-  status.innerText = sessoes.length
-    ? "Clique em uma sessão para ver os detalhes"
-    : "Nenhuma sessão encontrada.";
+  const meses = parseInt(seletor.value);
+  const fim = new Date();
+  const inicio = new Date();
+  inicio.setMonth(fim.getMonth() - meses);
 
-  sessoes.forEach(criarSessao);
-});
+  const dataInicio = inicio.toISOString().slice(0,10);
+  const dataFim = fim.toISOString().slice(0,10);
+
+  fetch(`${BASE}/eventos?dataInicio=${dataInicio}&dataFim=${dataFim}&ordenarPor=dataHoraInicio&ordem=DESC&itens=300`)
+    .then(r => r.json())
+    .then(json => {
+      const sessoes = (json.dados || []).filter(e => {
+        const t = ((e.titulo || "") + (e.descricao || "")).toLowerCase();
+        return t.includes("sessão") && t.includes("deliberativa");
+      });
+
+      status.innerText = sessoes.length
+        ? "Clique em uma sessão para ver os detalhes"
+        : "Nenhuma sessão encontrada.";
+
+      sessoes.forEach(criarSessao);
+    })
+    .catch(() => {
+      status.innerText = "Erro ao carregar sessões.";
+    });
+}
 
 /* =====================
-   CARD DA SESSÃO
+   LISTAGEM
 ===================== */
 function criarSessao(ev) {
   const div = document.createElement("div");
@@ -70,7 +89,7 @@ function criarSessao(ev) {
 }
 
 /* =====================
-   DETALHES DA SESSÃO
+   DETALHES
 ===================== */
 function abrirSessao(ev) {
   const box = document.getElementById(`det-${ev.id}`);
@@ -92,7 +111,7 @@ function abrirSessao(ev) {
 }
 
 /* =====================
-   DETALHAR VOTAÇÕES
+   VOTAÇÕES COMPLETAS
 ===================== */
 function carregarDetalhesVotacoes(ev, votacoes, box) {
 
@@ -110,7 +129,6 @@ function carregarDetalhesVotacoes(ev, votacoes, box) {
   html += "<strong>Votações realizadas:</strong><br><br>";
   box.innerHTML = html;
 
-  /* Carrega cada votação individualmente */
   Promise.all(
     votacoes.map(v =>
       fetch(`${BASE}/votacoes/${v.id}`)
@@ -135,6 +153,14 @@ function carregarDetalhesVotacoes(ev, votacoes, box) {
     box.dataset.carregado = "1";
   });
 }
+
+/* =====================
+   EVENTO DO SELETOR
+===================== */
+seletor.addEventListener("change", carregarSessoes);
+
+/* Inicial */
+carregarSessoes();
 </script>
 
 </body>
