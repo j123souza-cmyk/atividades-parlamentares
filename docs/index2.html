@@ -148,72 +148,43 @@ function montarVotacoes(ev, votacoes, box) {
   html += "<strong>Votações realizadas:</strong><br><br>";
   box.innerHTML = html;
 
-  Promise.all(
-    votacoes.map(v =>
-      fetch(`${BASE}/votacoes/${v.id}`)
-        .then(r => r.json())
-        .then(d => d.dados)
-        .catch(() => null)
-    )
-  ).then(lista => {
-    lista.forEach(v => {
-      if (!v || !v.proposicoesAfetadas?.length) return;
+  votacoes.forEach(v => {
+    if (!v.proposicoesAfetadas?.length) return;
 
-      v.proposicoesAfetadas.forEach(p => {
-        const idInfo = `info-${v.id}-${p.id}`;
+    v.proposicoesAfetadas.forEach(p => {
 
-        box.innerHTML += `
-          ➡️ <strong>${p.siglaTipo} ${p.numero}/${p.ano}</strong><br>
-          ${p.ementa || "Sem ementa"}<br>
-          <em>Resultado:</em> ${v.resultado || v.descricao || "Não informado"}<br>
-          <span id="${idInfo}"><em>Tipo de votação:</em> Verificando…</span><br>
-          <div id="placar-${idInfo}" class="placar"></div><br>
-        `;
+      const textoResultado = (v.resultado || v.descricao || "");
 
-        fetch(`${BASE}/votacoes/${v.id}/votos`)
-          .then(r => r.json())
-          .then(res => {
-            const info = document.getElementById(idInfo);
-            const placarDiv = document.getElementById(`placar-${idInfo}`);
+      const extrair = (label) => {
+        const r = new RegExp(label + "\\s*:?\\s*(\\d+)", "i");
+        const m = textoResultado.match(r);
+        return m ? parseInt(m[1]) : null;
+      };
 
-            if (!res.dados || res.dados.length === 0) {
-              info.innerHTML = "<em>Tipo de votação:</em> Simbólica (não nominal)";
-              return;
-            }
+      const sim = extrair("Sim");
+      const nao = extrair("Não");
+      const abst = extrair("Abstenção");
+      const total = extrair("Total");
 
-            info.innerHTML = "<em>Tipo de votação:</em> Nominal";
-
-            let sim = 0, nao = 0, abst = 0;
-
-            res.dados.forEach(voto => {
-              const vtxt = (voto.voto || "").toLowerCase();
-
-              if (vtxt === "sim") sim++;
-              else if (vtxt === "não" || vtxt === "nao") nao++;
-              else if (
-                vtxt === "abstenção" ||
-                vtxt === "abstencao" ||
-                vtxt === "branco" ||
-                vtxt.includes("art")
-              ) abst++;
-              // outros casos são ignorados (ausência, obstrução, etc.)
-            });
-
-            const total = sim + nao + abst;
-
-            placarDiv.innerHTML = `
-              Sim: ${sim}; Não: ${nao}; Abstenção: ${abst}; Total: ${total}.
-            `;
-          })
-          .catch(() => {
-            const info = document.getElementById(idInfo);
-            if (info) info.innerHTML = "<em>Tipo de votação:</em> Simbólica (não nominal)";
-          });
-      });
+      box.innerHTML += `
+        ➡️ <strong>${p.siglaTipo} ${p.numero}/${p.ano}</strong><br>
+        ${p.ementa || "Sem ementa"}<br>
+        <em>Resultado:</em> ${textoResultado || "Não informado"}<br>
+        <em>Tipo de votação:</em> Nominal<br>
+        ${sim !== null || nao !== null || abst !== null ? `
+          <div class="placar">
+            Sim: ${sim ?? 0};
+            Não: ${nao ?? 0};
+            Abstenção: ${abst ?? 0};
+            Total: ${total ?? ((sim??0)+(nao??0)+(abst??0))}.
+          </div>
+        ` : ""}
+        <br>
+      `;
     });
-
-    box.dataset.carregado = "1";
   });
+
+  box.dataset.carregado = "1";
 }
 
 /* =====================
