@@ -1,34 +1,82 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Sessões do Plenário da Câmara</title>
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  margin: 20px;
+}
+
+.evento {
+  padding: 10px;
+  border-bottom: 1px solid #ccc;
+  cursor: pointer;
+}
+
+.evento:hover {
+  background: #f2f2f2;
+}
+
+.detalhe {
+  margin-top: 8px;
+  padding: 8px;
+  background: #fafafa;
+  border-left: 3px solid #0077cc;
+}
+
+.oculto {
+  display: none;
+}
+
+#status {
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Últimas Sessões do Plenário</h2>
+
+<div id="status">Carregando sessões…</div>
+<div id="lista"></div>
+
 <script>
 const BASE = "https://dadosabertos.camara.leg.br/api/v2";
 const status = document.getElementById("status");
 const lista = document.getElementById("lista");
 
+/* Período maior para garantir resultados */
 const fim = new Date();
 const inicio = new Date();
-inicio.setMonth(fim.getMonth() - 2);
+inicio.setMonth(fim.getMonth() - 3);
 
 const dataInicio = inicio.toISOString().slice(0, 10);
 const dataFim = fim.toISOString().slice(0, 10);
 
 /* =========================
-   LISTAR SESSÕES
+   BUSCAR SESSÕES
 ========================= */
-fetch(`${BASE}/eventos?dataInicio=${dataInicio}&dataFim=${dataFim}&ordem=DESC&ordenarPor=dataHoraInicio&itens=200`)
+fetch(`${BASE}/eventos?dataInicio=${dataInicio}&dataFim=${dataFim}&ordem=DESC&ordenarPor=dataHoraInicio&itens=300`)
   .then(r => r.json())
   .then(json => {
-    status.innerText = "";
-
-    const eventos = (json.dados || []).filter(ev => {
-      const txt = ((ev.titulo || "") + " " + (ev.descricao || "")).toLowerCase();
-      return txt.includes("sessão") && txt.includes("deliberativa");
+    const eventos = (json.dados || []).filter(e => {
+      const texto = ((e.titulo || "") + (e.descricao || "")).toLowerCase();
+      return texto.includes("sessão") && texto.includes("deliberativa");
     });
 
-    if (!eventos.length) {
-      status.innerText = "Nenhuma sessão encontrada.";
-      return;
-    }
+    status.innerText = eventos.length
+      ? "Clique em uma sessão para ver os detalhes"
+      : "Nenhuma sessão encontrada.";
 
-    eventos.forEach(ev => criarSessao(ev));
+    eventos.forEach(criarSessao);
+  })
+  .catch(() => {
+    status.innerText = "Erro ao carregar sessões.";
   });
 
 /* =========================
@@ -39,9 +87,9 @@ function criarSessao(ev) {
   div.className = "evento";
 
   div.innerHTML = `
-    <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong>
-    ${ev.titulo || "Sessão deliberativa"}
-    <div id="det-${ev.id}" class="detalhe oculto">Carregando…</div>
+    <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong><br>
+    ${ev.titulo || "Sessão Deliberativa"}
+    <div id="det-${ev.id}" class="detalhe oculto"></div>
   `;
 
   div.onclick = () => abrirSessao(ev.id, ev.dataHoraInicio);
@@ -49,25 +97,29 @@ function criarSessao(ev) {
 }
 
 /* =========================
-   ABRIR DETALHES
+   DETALHES DA SESSÃO
 ========================= */
 function abrirSessao(id, dataHora) {
   const box = document.getElementById(`det-${id}`);
+
   if (!box.classList.contains("oculto")) {
     box.classList.add("oculto");
     return;
   }
 
   box.classList.remove("oculto");
-  if (box.dataset.ok) return;
+
+  if (box.dataset.carregado) return;
+  box.innerText = "Carregando detalhes…";
 
   Promise.all([
     fetch(`${BASE}/eventos/${id}`).then(r => r.json()),
     fetch(`${BASE}/eventos/${id}/pautas`).then(r => r.json())
   ])
-  .then(([evRes, pautaRes]) => {
-    box.dataset.ok = "1";
-    const ev = evRes.dados;
+  .then(([eventoRes, pautaRes]) => {
+    box.dataset.carregado = "1";
+
+    const ev = eventoRes.dados;
     const pautas = pautaRes.dados || [];
 
     let html = `
@@ -77,27 +129,24 @@ function abrirSessao(id, dataHora) {
     `;
 
     if (pautas.length) {
-      html += `<strong>Propostas analisadas nesta sessão:</strong><br>`;
+      html += "<strong>Propostas analisadas:</strong><br>";
       pautas.forEach(p => {
         if (p.proposicao_) {
           html += `➡️ ${p.proposicao_.siglaTipo} ${p.proposicao_.numero}/${p.proposicao_.ano}
-          – ${p.proposicao_.ementa || ""}<br>`;
+            – ${p.proposicao_.ementa || "Sem ementa"}<br>`;
         }
       });
     } else {
       html += "Nenhuma proposta listada na pauta.";
     }
 
-    if (ev.urlRegistro || ev.uri) {
-      html += `<br><a href="${ev.urlRegistro || ev.uri}" target="_blank">
-        🔗 Página oficial da sessão
-      </a>`;
-    }
-
     box.innerHTML = html;
   })
   .catch(() => {
-    box.innerText = "Erro ao carregar detalhes.";
+    box.innerText = "Erro ao carregar informações da sessão.";
   });
 }
 </script>
+
+</body>
+</html>
