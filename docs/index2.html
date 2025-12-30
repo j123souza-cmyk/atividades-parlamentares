@@ -38,7 +38,7 @@ const lista = document.getElementById("lista");
 const seletor = document.getElementById("periodo");
 
 /* =====================
-   CARREGAMENTO COM PAGINAÇÃO
+   BUSCA COM PARADA INTELIGENTE
 ===================== */
 async function carregarSessoes() {
   lista.innerHTML = "";
@@ -49,14 +49,14 @@ async function carregarSessoes() {
   const inicio = new Date();
   inicio.setMonth(fim.getMonth() - meses);
 
-  const dataInicio = inicio.toISOString().slice(0,10);
-  const dataFim = fim.toISOString().slice(0,10);
+  const dataInicio = inicio.toISOString().slice(0, 10);
+  const dataFim = fim.toISOString().slice(0, 10);
 
   let pagina = 1;
-  let todas = [];
+  let sessoesFiltradas = [];
   let continuar = true;
 
-  while (continuar && pagina <= 10) { // limite de segurança
+  while (continuar) {
     const resp = await fetch(
       `${BASE}/eventos?dataInicio=${dataInicio}&dataFim=${dataFim}` +
       `&ordenarPor=dataHoraInicio&ordem=DESC&pagina=${pagina}&itens=100`
@@ -64,24 +64,29 @@ async function carregarSessoes() {
     const json = await resp.json();
     const dados = json.dados || [];
 
-    if (!dados.length) {
-      continuar = false;
-    } else {
-      todas = todas.concat(dados);
-      pagina++;
+    if (!dados.length) break;
+
+    for (const ev of dados) {
+      const dataEvento = new Date(ev.dataHoraInicio);
+      if (dataEvento < inicio) {
+        continuar = false;
+        break;
+      }
+
+      const t = ((ev.titulo || "") + (ev.descricao || "")).toLowerCase();
+      if (t.includes("sessão") && t.includes("deliberativa")) {
+        sessoesFiltradas.push(ev);
+      }
     }
+
+    pagina++;
   }
 
-  const sessoes = todas.filter(e => {
-    const t = ((e.titulo || "") + (e.descricao || "")).toLowerCase();
-    return t.includes("sessão") && t.includes("deliberativa");
-  });
-
-  status.innerText = sessoes.length
-    ? `Sessões encontradas: ${sessoes.length}`
+  status.innerText = sessoesFiltradas.length
+    ? `Sessões encontradas: ${sessoesFiltradas.length}`
     : "Nenhuma sessão encontrada.";
 
-  sessoes.forEach(criarSessao);
+  sessoesFiltradas.forEach(criarSessao);
 }
 
 /* =====================
@@ -124,7 +129,7 @@ function abrirSessao(ev) {
 }
 
 /* =====================
-   VOTAÇÕES COMPLETAS
+   VOTAÇÕES DETALHADAS
 ===================== */
 function carregarDetalhesVotacoes(ev, votacoes, box) {
 
