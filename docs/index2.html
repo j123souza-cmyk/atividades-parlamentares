@@ -6,7 +6,7 @@
 
 <style>
 body { font-family: Arial, sans-serif; margin: 20px; }
-#controles { margin-bottom: 15px; display: flex; gap: 20px; align-items: center; }
+#controles { margin-bottom: 15px; }
 select { padding: 5px; }
 .evento { padding: 10px; border-bottom: 1px solid #ccc; cursor: pointer; }
 .evento:hover { background: #f2f2f2; }
@@ -25,13 +25,11 @@ select { padding: 5px; }
 <h2>Últimas Sessões do Plenário</h2>
 
 <div id="controles">
-  <div>
-    Período:
-    <select id="periodo">
-      <option value="3" selected>Últimos 3 meses</option>
-      <option value="6">Últimos 6 meses</option>
-    </select>
-  </div>
+  Período:
+  <select id="periodo">
+    <option value="3" selected>Últimos 3 meses</option>
+    <option value="6">Últimos 6 meses</option>
+  </select>
 </div>
 
 <div id="status">Carregando sessões…</div>
@@ -55,13 +53,17 @@ async function carregarSessoes() {
   const inicio = new Date();
   inicio.setMonth(fim.getMonth() - meses);
 
+  const dataInicio = inicio.toISOString().slice(0, 10);
+  const dataFim = fim.toISOString().slice(0, 10);
+
   let pagina = 1;
   let sessoes = [];
   let continuar = true;
 
   while (continuar) {
     const resp = await fetch(
-      `${BASE}/eventos?ordenarPor=dataHoraInicio&ordem=DESC&pagina=${pagina}&itens=100`
+      `${BASE}/eventos?dataInicio=${dataInicio}&dataFim=${dataFim}` +
+      `&ordenarPor=dataHoraInicio&ordem=DESC&pagina=${pagina}&itens=100`
     );
     const json = await resp.json();
     const dados = json.dados || [];
@@ -75,8 +77,15 @@ async function carregarSessoes() {
         break;
       }
 
-      const t = ((ev.titulo || "") + (ev.descricao || "")).toLowerCase();
-      if (t.includes("sessão") && t.includes("deliberativa")) {
+      const texto = ((ev.titulo || "") + (ev.descricao || "")).toLowerCase();
+
+      // ✅ FILTRO CORRIGIDO
+      if (
+        texto.includes("sessão") &&
+        !texto.includes("audiência") &&
+        !texto.includes("mesa") &&
+        !texto.includes("seminário")
+      ) {
         sessoes.push(ev);
       }
     }
@@ -99,7 +108,7 @@ function criarSessao(ev) {
 
   div.innerHTML = `
     <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong><br>
-    Sessão Deliberativa
+    Sessão do Plenário
     <div id="det-${ev.id}" class="detalhe oculto"></div>
   `;
 
@@ -128,7 +137,6 @@ function abrirSessao(ev) {
    DETALHES
 ===================== */
 async function carregarDetalhes(ev, votacoes, box) {
-
   let html = `
     <strong>Sessão para votação de propostas legislativas</strong><br><br>
     <strong>Local:</strong> Plenário da Câmara dos Deputados<br>
@@ -175,14 +183,7 @@ async function carregarDetalhes(ev, votacoes, box) {
 /* =====================
    EVENTOS
 ===================== */
-seletorPeriodo.addEventListener("change", () => {
-  document.querySelectorAll(".detalhe").forEach(d => {
-    d.classList.add("oculto");
-    d.removeAttribute("data-carregado");
-    d.innerHTML = "";
-  });
-  carregarSessoes();
-});
+seletorPeriodo.addEventListener("change", carregarSessoes);
 
 /* Inicial */
 carregarSessoes();
