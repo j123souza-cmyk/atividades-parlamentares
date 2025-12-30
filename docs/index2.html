@@ -90,20 +90,21 @@ function mostrar(id) {
 /* =========================
    LISTAR VOTAÇÕES
 ========================= */
-fetch(`${BASE}/votacoes?ordem=DESC&ordenarPor=dataHoraRegistro&itens=20`)
+fetch(`${BASE}/votacoes?ordem=DESC&ordenarPor=dataHoraRegistro&itens=50`)
   .then(r => r.json())
   .then(json => {
     const status = document.getElementById("statusVotacoes");
     if (status) status.innerText = "";
 
     json.dados.forEach(v => {
+      // Filtrar apenas votações com tema
+      if (!v.proposicaoObjeto) return;
 
       // Descrição completa
-      let tema = v.proposicaoObjeto || "Tema não especificado";
       const descricaoHtml = `
         <div class="tema">
           <strong>${v.siglaOrgao || "Órgão não informado"}</strong> —
-          ${tema}
+          ${v.proposicaoObjeto}
         </div>
         <div class="resultado">
           ${v.descricao || ""}
