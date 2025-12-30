@@ -13,7 +13,10 @@
     .ativa { display: block; }
 
     .filtros { margin: 12px 0; }
-    .filtros input, .filtros select { padding: 6px; margin-right: 6px; }
+    .filtros input, .filtros select {
+      padding: 6px;
+      margin-right: 6px;
+    }
 
     .deputado {
       display: flex;
@@ -84,19 +87,26 @@ function mostrar(id) {
 fetch(`${BASE}/deputados?ordem=ASC&ordenarPor=nome`)
   .then(r => r.json())
   .then(json => {
-    status.remove();
+    const statusEl = document.getElementById('status');
+    if (statusEl) statusEl.remove();
+
     deputados = json.dados;
     deputadosFiltrados = deputados;
+
     preencherFiltros(deputados);
     renderizarLista(deputados);
   });
 
 function preencherFiltros(lista) {
   [...new Set(lista.map(d => d.siglaPartido))].sort()
-    .forEach(p => filtroPartido.innerHTML += `<option value="${p}">${p}</option>`);
+    .forEach(p =>
+      filtroPartido.innerHTML += `<option value="${p}">${p}</option>`
+    );
 
   [...new Set(lista.map(d => d.siglaUf))].sort()
-    .forEach(u => filtroUf.innerHTML += `<option value="${u}">${u}</option>`);
+    .forEach(u =>
+      filtroUf.innerHTML += `<option value="${u}">${u}</option>`
+    );
 }
 
 function aplicarFiltros() {
@@ -114,10 +124,12 @@ function aplicarFiltros() {
 }
 
 function renderizarLista(lista) {
-  listaDeputados.innerHTML = "";
+  const container = document.getElementById('listaDeputados');
+  container.innerHTML = "";
+
   lista.forEach(dep => {
-    const div = document.createElement("div");
-    div.className = "deputado";
+    const div = document.createElement('div');
+    div.className = 'deputado';
     div.innerHTML = `
       <img src="${dep.urlFoto}">
       <div>
@@ -126,13 +138,13 @@ function renderizarLista(lista) {
       </div>
     `;
     div.onclick = () => abrirDetalhe(dep);
-    listaDeputados.appendChild(div);
+    container.appendChild(div);
   });
 }
 
 /* DETALHE */
 function abrirDetalhe(dep) {
-  mostrar("detalhe");
+  mostrar('detalhe');
   nomeDeputado.innerText = dep.nome;
   fotoDeputado.src = dep.urlFoto;
 
@@ -168,24 +180,21 @@ function abrirDetalhe(dep) {
 function desenharGrafico(eventos, plenarios, presenca) {
   if (chart) chart.destroy();
 
-  chart = new Chart(document.getElementById("grafico"), {
-    type: "bar",
+  chart = new Chart(document.getElementById('grafico'), {
+    type: 'bar',
     data: {
-      labels: ["Eventos", "Plenário", "Presença (%)"],
+      labels: ['Eventos', 'Plenário', 'Presença (%)'],
       datasets: [{
-        label: "Indicadores",
+        label: 'Indicadores',
         data: [eventos, plenarios, presenca],
-        backgroundColor: ["#4CAF50", "#2196F3", "#FF9800"],
+        backgroundColor: ['#4CAF50', '#2196F3', '#FF9800'],
         minBarLength: 6
       }]
     },
     options: {
       responsive: false,
       scales: {
-        y: {
-          beginAtZero: true,
-          ticks: { precision: 0 }
-        }
+        y: { beginAtZero: true, ticks: { precision: 0 } }
       }
     }
   });
