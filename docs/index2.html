@@ -149,14 +149,14 @@ function criarSessao(ev) {
     <div id="det-${ev.id}" class="detalhe oculto"></div>
   `;
 
-  div.onclick = () => abrirSessao(ev, div);
+  div.onclick = () => abrirSessao(ev);
   lista.appendChild(div);
 }
 
 /* =====================
    ABRIR SESSÃO
 ===================== */
-function abrirSessao(ev, bloco) {
+function abrirSessao(ev) {
   const box = document.getElementById(`det-${ev.id}`);
   box.classList.toggle("oculto");
 
@@ -174,7 +174,6 @@ function abrirSessao(ev, bloco) {
    DETALHES
 ===================== */
 async function carregarDetalhes(ev, votacoes, box) {
-
   let html = `
     <strong>Sessão para votação de propostas legislativas</strong><br><br>
     <strong>Local:</strong> Plenário da Câmara dos Deputados<br>
@@ -189,7 +188,6 @@ async function carregarDetalhes(ev, votacoes, box) {
   html += `<div class="lista-props"></div>`;
 
   box.innerHTML = html;
-
   const containerProps = box.querySelector(".lista-props");
 
   for (const v of votacoes) {
@@ -204,10 +202,10 @@ async function carregarDetalhes(ev, votacoes, box) {
     voto.proposicoesAfetadas.forEach(p => {
       const pHtml = document.createElement("div");
       pHtml.className = "proposicao";
+
       pHtml.innerHTML = `
         ➡️ <strong>
-          <a href="https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${p.id}"
-             target="_blank">
+          <a href="https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${p.id}" target="_blank">
             ${p.siglaTipo} ${p.numero}/${p.ano}
           </a>
         </strong><br>
@@ -215,6 +213,7 @@ async function carregarDetalhes(ev, votacoes, box) {
         <div class="resultado"><strong>Resultado:</strong> ${resultado}</div>
         ${resumoVotos ? `<div class="votos">${resumoVotos}</div>` : ""}
       `;
+
       containerProps.appendChild(pHtml);
     });
   }
@@ -223,30 +222,30 @@ async function carregarDetalhes(ev, votacoes, box) {
 }
 
 /* =====================
-   BUSCA COM DESTAQUE
+   BUSCA COM DESTAQUE CORRETO
 ===================== */
 buscaGeral.addEventListener("input", () => {
-  const termo = buscaGeral.value.trim().toLowerCase();
+  const termo = buscaGeral.value.trim();
+  const termoLower = termo.toLowerCase();
 
   document.querySelectorAll(".evento").forEach(sessao => {
     const detalhe = sessao.querySelector(".detalhe");
-    let textoSessao = sessao.innerText.toLowerCase();
-    let textoDetalhe = detalhe?.innerText.toLowerCase() || "";
+    const textoSessao = sessao.innerText.toLowerCase();
+    const textoDetalhe = detalhe?.innerText.toLowerCase() || "";
 
-    const mostrar = (textoSessao + textoDetalhe).includes(termo);
+    const mostrar = !termo || (textoSessao + textoDetalhe).includes(termoLower);
     sessao.style.display = mostrar ? "" : "none";
 
     if (mostrar && termo) {
-      // Destacar apenas o termo procurado
-      const regex = new RegExp(`(${termo})`, "gi");
-
-      // Destacar na sessão
-      sessao.querySelectorAll(".proposicao, .resultado, .votos, .video, strong").forEach(el => {
-        el.innerHTML = el.textContent.replace(regex, "<strong>$1</strong>");
+      // Destacar termo no detalhe
+      detalhe.querySelectorAll(".proposicao, .resultado, .votos, .video, strong").forEach(el => {
+        const texto = el.textContent;
+        const regex = new RegExp(`(${termo})`, "gi");
+        el.innerHTML = texto.replace(regex, "<strong>$1</strong>");
       });
     } else {
       // Limpar destaques
-      sessao.querySelectorAll(".proposicao, .resultado, .votos, .video, strong").forEach(el => {
+      detalhe.querySelectorAll(".proposicao, .resultado, .votos, .video, strong").forEach(el => {
         el.innerHTML = el.textContent;
       });
     }
