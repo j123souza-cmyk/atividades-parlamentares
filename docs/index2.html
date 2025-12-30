@@ -184,9 +184,12 @@ function montarVotacoes(ev, votacoes, box) {
             info.innerHTML = "<em>Tipo de votação:</em> Nominal";
 
             let sim = 0, nao = 0, abst = 0;
+
             res.dados.forEach(voto => {
-              if (voto.voto === "Sim") sim++;
-              else if (voto.voto === "Não") nao++;
+              const v = (voto.voto || "").toLowerCase();
+
+              if (v === "sim") sim++;
+              else if (v === "não" || v === "nao") nao++;
               else abst++;
             });
 
