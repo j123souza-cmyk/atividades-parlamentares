@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Sessões do Plenário da Câmara</title>
+<title>Sessões do Plenário</title>
 
 <style>
 body {
@@ -22,18 +22,16 @@ body {
 
 .detalhe {
   margin-top: 8px;
-  padding: 8px;
+  padding: 10px;
   background: #fafafa;
-  border-left: 3px solid #0077cc;
+  border-left: 3px solid #005ea8;
 }
 
-.oculto {
-  display: none;
-}
+.oculto { display: none; }
 
 #status {
   font-weight: bold;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 </style>
 </head>
@@ -50,57 +48,54 @@ const BASE = "https://dadosabertos.camara.leg.br/api/v2";
 const status = document.getElementById("status");
 const lista = document.getElementById("lista");
 
-/* Período maior para garantir resultados */
+/* Aumenta o período */
 const fim = new Date();
 const inicio = new Date();
 inicio.setMonth(fim.getMonth() - 3);
 
-const dataInicio = inicio.toISOString().slice(0, 10);
-const dataFim = fim.toISOString().slice(0, 10);
+const dataInicio = inicio.toISOString().slice(0,10);
+const dataFim = fim.toISOString().slice(0,10);
 
-/* =========================
+/* =====================
    BUSCAR SESSÕES
-========================= */
-fetch(`${BASE}/eventos?dataInicio=${dataInicio}&dataFim=${dataFim}&ordem=DESC&ordenarPor=dataHoraInicio&itens=300`)
-  .then(r => r.json())
-  .then(json => {
-    const eventos = (json.dados || []).filter(e => {
-      const texto = ((e.titulo || "") + (e.descricao || "")).toLowerCase();
-      return texto.includes("sessão") && texto.includes("deliberativa");
-    });
-
-    status.innerText = eventos.length
-      ? "Clique em uma sessão para ver os detalhes"
-      : "Nenhuma sessão encontrada.";
-
-    eventos.forEach(criarSessao);
-  })
-  .catch(() => {
-    status.innerText = "Erro ao carregar sessões.";
+===================== */
+fetch(`${BASE}/eventos?dataInicio=${dataInicio}&dataFim=${dataFim}&ordenarPor=dataHoraInicio&ordem=DESC&itens=300`)
+.then(r => r.json())
+.then(json => {
+  const sessoes = (json.dados || []).filter(e => {
+    const t = ((e.titulo || "") + (e.descricao || "")).toLowerCase();
+    return t.includes("sessão") && t.includes("deliberativa");
   });
 
-/* =========================
-   CARD DA SESSÃO
-========================= */
+  status.innerText = sessoes.length
+    ? "Clique em uma sessão para ver os detalhes"
+    : "Nenhuma sessão encontrada.";
+
+  sessoes.forEach(criarSessao);
+});
+
+/* =====================
+   LISTAGEM
+===================== */
 function criarSessao(ev) {
   const div = document.createElement("div");
   div.className = "evento";
 
   div.innerHTML = `
     <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong><br>
-    ${ev.titulo || "Sessão Deliberativa"}
+    Sessão Deliberativa
     <div id="det-${ev.id}" class="detalhe oculto"></div>
   `;
 
-  div.onclick = () => abrirSessao(ev.id, ev.dataHoraInicio);
+  div.onclick = () => abrirSessao(ev);
   lista.appendChild(div);
 }
 
-/* =========================
-   DETALHES DA SESSÃO
-========================= */
-function abrirSessao(id, dataHora) {
-  const box = document.getElementById(`det-${id}`);
+/* =====================
+   DETALHES
+===================== */
+function abrirSessao(ev) {
+  const box = document.getElementById(`det-${ev.id}`);
 
   if (!box.classList.contains("oculto")) {
     box.classList.add("oculto");
@@ -110,34 +105,45 @@ function abrirSessao(id, dataHora) {
   box.classList.remove("oculto");
 
   if (box.dataset.carregado) return;
-  box.innerText = "Carregando detalhes…";
+  box.innerHTML = "Carregando detalhes…";
 
   Promise.all([
-    fetch(`${BASE}/eventos/${id}`).then(r => r.json()),
-    fetch(`${BASE}/eventos/${id}/pautas`).then(r => r.json())
+    fetch(`${BASE}/eventos/${ev.id}/pautas`).then(r => r.json()),
+    fetch(`${BASE}/eventos/${ev.id}/votacoes`).then(r => r.json())
   ])
-  .then(([eventoRes, pautaRes]) => {
+  .then(([pautaRes, votRes]) => {
     box.dataset.carregado = "1";
-
-    const ev = eventoRes.dados;
-    const pautas = pautaRes.dados || [];
 
     let html = `
       <strong>Sessão para votação de propostas legislativas</strong><br><br>
-      <strong>Local:</strong> ${ev.local || "Plenário da Câmara dos Deputados"}<br>
-      <strong>Início:</strong> ${new Date(dataHora).toLocaleString()}<br><br>
+      <strong>Local:</strong> Plenário da Câmara dos Deputados<br>
+      <strong>Início:</strong> ${new Date(ev.dataHoraInicio).toLocaleString()}<br><br>
     `;
 
+    const pautas = pautaRes.dados || [];
+    const votacoes = votRes.dados || [];
+
     if (pautas.length) {
-      html += "<strong>Propostas analisadas:</strong><br>";
+      html += "<strong>Propostas pautadas:</strong><br>";
       pautas.forEach(p => {
         if (p.proposicao_) {
           html += `➡️ ${p.proposicao_.siglaTipo} ${p.proposicao_.numero}/${p.proposicao_.ano}
             – ${p.proposicao_.ementa || "Sem ementa"}<br>`;
         }
       });
-    } else {
-      html += "Nenhuma proposta listada na pauta.";
+    }
+    else if (votacoes.length) {
+      html += "<strong>Votações realizadas:</strong><br>";
+      votacoes.forEach(v => {
+        if (v.proposicaoObjeto_) {
+          html += `➡️ ${v.proposicaoObjeto_.siglaTipo} ${v.proposicaoObjeto_.numero}/${v.proposicaoObjeto_.ano}
+            – ${v.proposicaoObjeto_.ementa || "Sem ementa"}<br>
+            Resultado: ${v.descricao || "Resultado não informado"}<br><br>`;
+        }
+      });
+    }
+    else {
+      html += "Nenhuma informação legislativa disponível.";
     }
 
     box.innerHTML = html;
