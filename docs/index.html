@@ -9,6 +9,7 @@
   <style>
     body { font-family: Arial, sans-serif; margin: 16px; }
     nav button { margin-right: 8px; padding: 8px 12px; cursor: pointer; }
+
     .aba { display: none; }
     .ativa { display: block; }
 
@@ -34,6 +35,31 @@
       font-weight: bold;
       font-size: 1.05em;
     }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 6px;
+      text-align: left;
+    }
+
+    th { background: #f0f0f0; }
+
+    .ranking-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .progresso {
+      margin: 10px 0;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
@@ -42,9 +68,11 @@
 
 <nav>
   <button onclick="mostrar('lista')">Deputados</button>
+  <button onclick="mostrar('ranking')">Ranking de Presença</button>
   <button onclick="mostrar('detalhe')">Detalhes</button>
 </nav>
 
+<!-- LISTA -->
 <section id="lista" class="aba ativa">
   <p id="status">Carregando deputados...</p>
 
@@ -63,13 +91,54 @@
   <div id="listaDeputados"></div>
 </section>
 
+<!-- RANKING -->
+<section id="ranking" class="aba">
+  <p class="progresso" id="statusRanking">
+    Clique no botão para gerar o ranking com base nos filtros atuais
+  </p>
+
+  <button onclick="gerarRankingPresenca()">Gerar ranking</button>
+
+  <div class="ranking-container">
+    <div>
+      <h3>Top 20 – Maior Presença</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Deputado</th>
+            <th>Partido</th>
+            <th>UF</th>
+            <th>Presença (%)</th>
+          </tr>
+        </thead>
+        <tbody id="rankingMaior"></tbody>
+      </table>
+    </div>
+
+    <div>
+      <h3>Top 20 – Menor Presença</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Deputado</th>
+            <th>Partido</th>
+            <th>UF</th>
+            <th>Presença (%)</th>
+          </tr>
+        </thead>
+        <tbody id="rankingMenor"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- DETALHE -->
 <section id="detalhe" class="aba">
   <h2 id="nomeDeputado"></h2>
   <img id="fotoDeputado">
-
   <p class="presenca" id="presencaTexto"></p>
-
-  <p><strong>Atividades no último ano</strong></p>
   <canvas id="grafico" width="440" height="300"></canvas>
 </section>
 
@@ -100,14 +169,10 @@ fetch(`${BASE}/deputados?ordem=ASC&ordenarPor=nome`)
 
 function preencherFiltros(lista) {
   [...new Set(lista.map(d => d.siglaPartido))].sort()
-    .forEach(p =>
-      filtroPartido.innerHTML += `<option value="${p}">${p}</option>`
-    );
+    .forEach(p => filtroPartido.innerHTML += `<option value="${p}">${p}</option>`);
 
   [...new Set(lista.map(d => d.siglaUf))].sort()
-    .forEach(u =>
-      filtroUf.innerHTML += `<option value="${u}">${u}</option>`
-    );
+    .forEach(u => filtroUf.innerHTML += `<option value="${u}">${u}</option>`);
 }
 
 function aplicarFiltros() {
@@ -125,9 +190,7 @@ function aplicarFiltros() {
 }
 
 function renderizarLista(lista) {
-  const container = document.getElementById('listaDeputados');
-  container.innerHTML = "";
-
+  listaDeputados.innerHTML = "";
   lista.forEach(dep => {
     const div = document.createElement('div');
     div.className = 'deputado';
@@ -139,7 +202,7 @@ function renderizarLista(lista) {
       </div>
     `;
     div.onclick = () => abrirDetalhe(dep);
-    container.appendChild(div);
+    listaDeputados.appendChild(div);
   });
 }
 
@@ -149,44 +212,110 @@ function abrirDetalhe(dep) {
   nomeDeputado.innerText = dep.nome;
   fotoDeputado.src = dep.urlFoto;
 
+  calcularPresenca(dep).then(({ presenca, totalEventos, plenarios }) => {
+    presencaTexto.innerText = `Presença no plenário: ${presenca}%`;
+    desenharGrafico(totalEventos, plenarios);
+  });
+}
+
+/* CÁLCULO DE PRESENÇA (REUTILIZÁVEL) */
+async function calcularPresenca(dep) {
   const fim = new Date();
   const inicio = new Date();
   inicio.setFullYear(fim.getFullYear() - 1);
 
-  const dataIni = inicio.toISOString().slice(0,10);
-  const dataFim = fim.toISOString().slice(0,10);
+  const di = inicio.toISOString().slice(0,10);
+  const df = fim.toISOString().slice(0,10);
 
-  fetch(`${BASE}/deputados/${dep.id}/eventos?dataInicio=${dataIni}&dataFim=${dataFim}&itens=1000`)
-    .then(r => r.json())
-    .then(json => {
-      const eventos = json.dados || [];
-      const totalEventos = eventos.length;
+  try {
+    const r = await fetch(
+      `${BASE}/deputados/${dep.id}/eventos?dataInicio=${di}&dataFim=${df}&itens=1000`
+    );
+    const j = await r.json();
+    const eventos = j.dados || [];
 
-      const plenarios = eventos.filter(e =>
-        (e.localCamara?.nome || "").toLowerCase().includes("plenário") ||
-        (e.descricao || "").toLowerCase().includes("plenário")
-      ).length;
+    const plenarios = eventos.filter(e =>
+      (e.localCamara?.nome || "").toLowerCase().includes("plenário") ||
+      (e.descricao || "").toLowerCase().includes("plenário")
+    ).length;
 
-      const presenca = totalEventos > 0
-        ? Math.round((plenarios / totalEventos) * 100)
-        : 0;
+    const presenca = eventos.length > 0
+      ? Math.round((plenarios / eventos.length) * 100)
+      : 0;
 
-      presencaTexto.innerText = `Presença no plenário: ${presenca}%`;
-
-      desenharGrafico(totalEventos, plenarios);
-    });
+    return { presenca, totalEventos: eventos.length, plenarios };
+  } catch {
+    return { presenca: 0, totalEventos: 0, plenarios: 0 };
+  }
 }
 
-/* GRÁFICO (SÓ QUANTIDADES) */
+/* RANKING */
+async function gerarRankingPresenca() {
+  rankingMaior.innerHTML = "";
+  rankingMenor.innerHTML = "";
+
+  const status = document.getElementById('statusRanking');
+  status.innerText = `Calculando presença de ${deputadosFiltrados.length} deputados...`;
+
+  const resultados = [];
+  let count = 1;
+
+  for (const dep of deputadosFiltrados) {
+    status.innerText = `Calculando ${count}/${deputadosFiltrados.length}...`;
+    count++;
+
+    const r = await calcularPresenca(dep);
+
+    resultados.push({
+      nome: dep.nome,
+      partido: dep.siglaPartido,
+      uf: dep.siglaUf,
+      presenca: r.presenca
+    });
+  }
+
+  const maior = [...resultados]
+    .sort((a,b) => b.presenca - a.presenca)
+    .slice(0,20);
+
+  const menor = [...resultados]
+    .sort((a,b) => a.presenca - b.presenca)
+    .slice(0,20);
+
+  maior.forEach((d,i) => {
+    rankingMaior.innerHTML += `
+      <tr>
+        <td>${i+1}</td>
+        <td>${d.nome}</td>
+        <td>${d.partido}</td>
+        <td>${d.uf}</td>
+        <td>${d.presenca}%</td>
+      </tr>`;
+  });
+
+  menor.forEach((d,i) => {
+    rankingMenor.innerHTML += `
+      <tr>
+        <td>${i+1}</td>
+        <td>${d.nome}</td>
+        <td>${d.partido}</td>
+        <td>${d.uf}</td>
+        <td>${d.presenca}%</td>
+      </tr>`;
+  });
+
+  status.innerText = "Ranking concluído";
+}
+
+/* GRÁFICO */
 function desenharGrafico(eventos, plenarios) {
   if (chart) chart.destroy();
 
   chart = new Chart(document.getElementById('grafico'), {
     type: 'bar',
     data: {
-      labels: ['Eventos', 'Atividades no Plenário'],
+      labels: ['Eventos', 'Plenário'],
       datasets: [{
-        label: 'Quantidade',
         data: [eventos, plenarios],
         backgroundColor: ['#4CAF50', '#2196F3'],
         minBarLength: 6
@@ -195,10 +324,7 @@ function desenharGrafico(eventos, plenarios) {
     options: {
       responsive: false,
       scales: {
-        y: {
-          beginAtZero: true,
-          ticks: { precision: 0 }
-        }
+        y: { beginAtZero: true, ticks: { precision: 0 } }
       }
     }
   });
