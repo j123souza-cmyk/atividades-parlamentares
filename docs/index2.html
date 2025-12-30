@@ -10,7 +10,10 @@ body {
   margin: 20px;
   background: #f7f7f7;
 }
-h1 { margin-bottom: 10px; }
+
+h1 {
+  margin-bottom: 10px;
+}
 
 .filtros {
   margin-bottom: 15px;
@@ -18,8 +21,8 @@ h1 { margin-bottom: 10px; }
 
 select, button {
   padding: 6px 10px;
-  margin-right: 10px;
   font-size: 14px;
+  margin-right: 8px;
 }
 
 .contador {
@@ -50,105 +53,71 @@ select, button {
   <select id="periodo">
     <option value="3" selected>Últimos 3 meses</option>
     <option value="6">Últimos 6 meses</option>
-    <option value="12">Últimos 12 meses</option>
   </select>
-  <button id="filtrar">Filtrar</button>
+  <button onclick="carregarSessoes()">Filtrar</button>
 </div>
 
 <div id="contador" class="contador"></div>
+
 <div id="resultado">
   <div class="carregando">Carregando sessões...</div>
 </div>
 
 <script>
-const resultadoEl = document.getElementById("resultado");
-const contadorEl = document.getElementById("contador");
-const periodoEl = document.getElementById("periodo");
-const botaoFiltrar = document.getElementById("filtrar");
+const BASE = "https://dadosabertos.camara.leg.br/api/v2";
 
-botaoFiltrar.addEventListener("click", carregarSessoes);
-carregarSessoes(); // padrão: 3 meses
+function carregarSessoes() {
+  const resultado = document.getElementById("resultado");
+  const contador = document.getElementById("contador");
+  const meses = Number(document.getElementById("periodo").value);
 
-async function carregarSessoes() {
-  resultadoEl.innerHTML = '<div class="carregando">Carregando sessões...</div>';
-  contadorEl.textContent = "";
-
-  const meses = Number(periodoEl.value);
+  resultado.innerHTML = '<div class="carregando">Carregando sessões...</div>';
+  contador.textContent = "";
 
   const dataFim = new Date();
   const dataInicio = new Date();
   dataInicio.setMonth(dataFim.getMonth() - meses);
 
-  const limiteData = dataInicio.getTime();
+  const dataIniISO = dataInicio.toISOString().slice(0,10);
+  const dataFimISO = dataFim.toISOString().slice(0,10);
 
-  let pagina = 1;
-  let todasSessoes = [];
-  let continuar = true;
+  fetch(`${BASE}/eventos?codTipoEvento=140&dataInicio=${dataIniISO}&dataFim=${dataFimISO}&ordenarPor=dataHoraInicio&ordem=DESC&itens=100`)
+    .then(r => r.json())
+    .then(json => {
+      const sessoes = json.dados || [];
 
-  try {
-    while (continuar) {
-      const url = `
-        https://dadosabertos.camara.leg.br/api/v2/eventos
-        ?codTipoEvento=140
-        &ordenarPor=dataHoraInicio
-        &ordem=DESC
-        &itens=100
-        &pagina=${pagina}
-      `.replace(/\s+/g, "");
-
-      const response = await fetch(url);
-      const json = await response.json();
-      const dados = json?.dados || [];
-
-      if (dados.length === 0) break;
-
-      for (const sessao of dados) {
-        if (!sessao.dataHoraInicio) continue;
-
-        const dataSessao = new Date(sessao.dataHoraInicio).getTime();
-
-        if (dataSessao < limiteData) {
-          continuar = false;
-          break;
-        }
-
-        todasSessoes.push(sessao);
+      if (sessoes.length === 0) {
+        resultado.innerHTML = "<p>Nenhuma sessão encontrada.</p>";
+        contador.textContent = "Sessões encontradas: 0";
+        return;
       }
 
-      pagina++;
-    }
+      contador.textContent = `Sessões encontradas no período: ${sessoes.length}`;
+      resultado.innerHTML = "";
 
-    if (todasSessoes.length === 0) {
-      resultadoEl.innerHTML = "<p>Nenhuma sessão encontrada.</p>";
-      contadorEl.textContent = "Sessões encontradas: 0";
-      return;
-    }
+      sessoes.forEach(sessao => {
+        const inicio = sessao.dataHoraInicio
+          ? new Date(sessao.dataHoraInicio).toLocaleString("pt-BR")
+          : "Não informado";
 
-    contadorEl.textContent =
-      `Sessões encontradas no período: ${todasSessoes.length}`;
-
-    resultadoEl.innerHTML = "";
-
-    todasSessoes.forEach(sessao => {
-      const inicio = sessao.dataHoraInicio
-        ? new Date(sessao.dataHoraInicio).toLocaleString("pt-BR")
-        : "Não informado";
-
-      const div = document.createElement("div");
-      div.className = "sessao";
-      div.innerHTML = `
-        <strong>${sessao.descricaoTipo || "Sessão Deliberativa"}</strong><br>
-        <strong>Local:</strong> ${sessao.localCamara?.nome || "Plenário"}<br>
-        <strong>Início:</strong> ${inicio}
-      `;
-      resultadoEl.appendChild(div);
+        const div = document.createElement("div");
+        div.className = "sessao";
+        div.innerHTML = `
+          <strong>${sessao.descricaoTipo || "Sessão Deliberativa"}</strong><br>
+          <strong>Local:</strong> ${sessao.localCamara?.nome || "Plenário"}<br>
+          <strong>Início:</strong> ${inicio}
+        `;
+        resultado.appendChild(div);
+      });
+    })
+    .catch(erro => {
+      console.error(erro);
+      resultado.innerHTML = "<p>Erro ao carregar sessões.</p>";
     });
-
-  } catch (erro) {
-    console.error(erro);
-    resultadoEl.innerHTML = "<p>Erro ao carregar sessões.</p>";
-  }
 }
+
+// carregar automaticamente ao abrir (3 meses)
+carregarSessoes();
 </script>
 
 </body>
