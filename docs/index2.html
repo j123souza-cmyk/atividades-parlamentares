@@ -226,26 +226,28 @@ async function carregarDetalhes(ev, votacoes, box) {
    BUSCA COM DESTAQUE
 ===================== */
 buscaGeral.addEventListener("input", () => {
-  const termo = buscaGeral.value.toLowerCase();
+  const termo = buscaGeral.value.trim().toLowerCase();
+
   document.querySelectorAll(".evento").forEach(sessao => {
     const detalhe = sessao.querySelector(".detalhe");
-    const textoSessao = sessao.innerText.toLowerCase();
-    const textoDetalhe = detalhe?.innerText.toLowerCase() || "";
+    let textoSessao = sessao.innerText.toLowerCase();
+    let textoDetalhe = detalhe?.innerText.toLowerCase() || "";
 
     const mostrar = (textoSessao + textoDetalhe).includes(termo);
     sessao.style.display = mostrar ? "" : "none";
 
     if (mostrar && termo) {
-      // Substitui todas as ocorrências do termo por negrito
+      // Destacar apenas o termo procurado
       const regex = new RegExp(`(${termo})`, "gi");
 
+      // Destacar na sessão
       sessao.querySelectorAll(".proposicao, .resultado, .votos, .video, strong").forEach(el => {
-        el.innerHTML = el.innerHTML.replace(regex, "<strong>$1</strong>");
+        el.innerHTML = el.textContent.replace(regex, "<strong>$1</strong>");
       });
     } else {
-      // Se limpar o campo, remove negrito
+      // Limpar destaques
       sessao.querySelectorAll(".proposicao, .resultado, .votos, .video, strong").forEach(el => {
-        el.innerHTML = el.innerHTML.replace(/<strong>(.*?)<\/strong>/gi, "$1");
+        el.innerHTML = el.textContent;
       });
     }
   });
