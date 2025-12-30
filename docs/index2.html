@@ -24,7 +24,7 @@ body { font-family: Arial, sans-serif; margin: 16px; }
 </head>
 <body>
 
-<h1>Sessões Recentes do Plenário</h1>
+<h1>Sessões do Plenário</h1>
 <p><em>Nessas sessões ocorrem as votações oficiais.</em></p>
 
 <p id="status">Carregando sessões…</p>
@@ -35,15 +35,26 @@ const BASE = "https://dadosabertos.camara.leg.br/api/v2";
 const status = document.getElementById("status");
 const lista = document.getElementById("lista");
 
-fetch(`${BASE}/eventos?ordem=DESC&ordenarPor=dataHoraInicio&itens=50`)
+// 🔹 PERÍODO: últimos 12 meses
+const fim = new Date();
+const inicio = new Date();
+inicio.setFullYear(fim.getFullYear() - 1);
+
+const dataInicio = inicio.toISOString().slice(0, 10);
+const dataFim = fim.toISOString().slice(0, 10);
+
+fetch(`${BASE}/eventos?dataInicio=${dataInicio}&dataFim=${dataFim}&ordem=DESC&ordenarPor=dataHoraInicio&itens=200`)
   .then(r => r.json())
   .then(json => {
     status.innerText = "";
 
-    const eventos = json.dados || [];
+    const eventos = (json.dados || []).filter(ev => {
+      const texto = ((ev.titulo || "") + " " + (ev.descricao || "")).toLowerCase();
+      return texto.includes("plen");
+    });
 
     if (eventos.length === 0) {
-      status.innerText = "Nenhuma sessão encontrada.";
+      status.innerText = "Nenhuma sessão encontrada no período.";
       return;
     }
 
