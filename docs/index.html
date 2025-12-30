@@ -26,6 +26,19 @@
       padding: 8px 0; cursor: pointer;
     }
     .deputado img { width: 60px; border-radius: 6px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 6px;
+      text-align: left;
+    }
+    th { background: #f0f0f0; }
+
     #detalhe img { width: 120px; border-radius: 8px; }
   </style>
 </head>
@@ -35,30 +48,43 @@
 
 <nav>
   <button onclick="mostrar('lista')">Deputados</button>
+  <button onclick="mostrar('ranking')">Ranking</button>
   <button onclick="mostrar('detalhe')">Detalhes</button>
 </nav>
 
 <section id="lista" class="aba ativa">
   <p id="status">Carregando deputados...</p>
 
-  <!-- FILTROS -->
   <div class="filtros">
-    <input
-      type="text"
-      id="filtroNome"
-      placeholder="Buscar por nome"
-      oninput="aplicarFiltros()">
-
+    <input type="text" id="filtroNome" placeholder="Buscar por nome" oninput="aplicarFiltros()">
     <select id="filtroPartido" onchange="aplicarFiltros()">
       <option value="">Partido</option>
     </select>
-
     <select id="filtroUf" onchange="aplicarFiltros()">
       <option value="">UF</option>
     </select>
   </div>
 
   <div id="listaDeputados"></div>
+</section>
+
+<section id="ranking" class="aba">
+  <p id="statusRanking">Clique para gerar o ranking</p>
+  <button onclick="gerarRanking()">Gerar ranking</button>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Deputado</th>
+        <th>Partido</th>
+        <th>UF</th>
+        <th>Eventos</th>
+        <th>Plenário</th>
+      </tr>
+    </thead>
+    <tbody id="rankingBody"></tbody>
+  </table>
 </section>
 
 <section id="detalhe" class="aba">
@@ -72,6 +98,8 @@
 const BASE = "https://dadosabertos.camara.leg.br/api/v2";
 let chart = null;
 let deputados = [];
+let deputadosFiltrados = [];
+let cacheEventos = {};
 
 function mostrar(id) {
   document.querySelectorAll('.aba').forEach(a => a.classList.remove('ativa'));
@@ -84,51 +112,35 @@ fetch(`${BASE}/deputados?ordem=ASC&ordenarPor=nome`)
   .then(json => {
     document.getElementById('status').remove();
     deputados = json.dados;
-
+    deputadosFiltrados = deputados;
     preencherFiltros(deputados);
     renderizarLista(deputados);
   });
 
 function preencherFiltros(lista) {
-  const partidos = [...new Set(lista.map(d => d.siglaPartido))].sort();
-  const ufs = [...new Set(lista.map(d => d.siglaUf))].sort();
+  [...new Set(lista.map(d => d.siglaPartido))].sort()
+    .forEach(p => filtroPartido.innerHTML += `<option>${p}</option>`);
 
-  const selPartido = document.getElementById('filtroPartido');
-  const selUf = document.getElementById('filtroUf');
-
-  partidos.forEach(p => {
-    const opt = document.createElement('option');
-    opt.value = p;
-    opt.textContent = p;
-    selPartido.appendChild(opt);
-  });
-
-  ufs.forEach(u => {
-    const opt = document.createElement('option');
-    opt.value = u;
-    opt.textContent = u;
-    selUf.appendChild(opt);
-  });
+  [...new Set(lista.map(d => d.siglaUf))].sort()
+    .forEach(u => filtroUf.innerHTML += `<option>${u}</option>`);
 }
 
 function aplicarFiltros() {
-  const nome = document.getElementById('filtroNome').value.toLowerCase();
-  const partido = document.getElementById('filtroPartido').value;
-  const uf = document.getElementById('filtroUf').value;
+  const nome = filtroNome.value.toLowerCase();
+  const partido = filtroPartido.value;
+  const uf = filtroUf.value;
 
-  const filtrados = deputados.filter(d =>
+  deputadosFiltrados = deputados.filter(d =>
     d.nome.toLowerCase().includes(nome) &&
     (partido === "" || d.siglaPartido === partido) &&
     (uf === "" || d.siglaUf === uf)
   );
 
-  renderizarLista(filtrados);
+  renderizarLista(deputadosFiltrados);
 }
 
 function renderizarLista(lista) {
-  const container = document.getElementById('listaDeputados');
-  container.innerHTML = "";
-
+  listaDeputados.innerHTML = "";
   lista.forEach(dep => {
     const div = document.createElement('div');
     div.className = 'deputado';
@@ -140,8 +152,65 @@ function renderizarLista(lista) {
       </div>
     `;
     div.onclick = () => abrirDetalhe(dep);
-    container.appendChild(div);
+    listaDeputados.appendChild(div);
   });
+}
+
+/* RANKING */
+async function gerarRanking() {
+  statusRanking.innerText = "Calculando ranking...";
+  rankingBody.innerHTML = "";
+
+  const fim = new Date();
+  const inicio = new Date();
+  inicio.setFullYear(fim.getFullYear() - 1);
+
+  const dataIni = inicio.toISOString().slice(0,10);
+  const dataFim = fim.toISOString().slice(0,10);
+
+  const resultados = [];
+
+  for (const dep of deputadosFiltrados) {
+    if (!cacheEventos[dep.id]) {
+      const r = await fetch(
+        `${BASE}/deputados/${dep.id}/eventos?dataInicio=${dataIni}&dataFim=${dataFim}&itens=1000`
+      );
+      const j = await r.json();
+      cacheEventos[dep.id] = j.dados || [];
+    }
+
+    const eventos = cacheEventos[dep.id];
+
+    const plenarios = eventos.filter(e =>
+      (e.localCamara?.nome || "").toLowerCase().includes("plenário") ||
+      (e.descricao || "").toLowerCase().includes("plenário")
+    ).length;
+
+    resultados.push({
+      nome: dep.nome,
+      partido: dep.siglaPartido,
+      uf: dep.siglaUf,
+      eventos: eventos.length,
+      plenarios
+    });
+  }
+
+  resultados
+    .sort((a,b) => b.eventos - a.eventos)
+    .forEach((d,i) => {
+      rankingBody.innerHTML += `
+        <tr>
+          <td>${i+1}</td>
+          <td>${d.nome}</td>
+          <td>${d.partido}</td>
+          <td>${d.uf}</td>
+          <td>${d.eventos}</td>
+          <td>${d.plenarios}</td>
+        </tr>
+      `;
+    });
+
+  statusRanking.innerText = `Ranking gerado (${resultados.length} deputados)`;
 }
 
 /* DETALHE */
@@ -161,27 +230,22 @@ function abrirDetalhe(dep) {
     .then(r => r.json())
     .then(json => {
       const eventos = json.dados || [];
-
-      const totalEventos = eventos.length;
-
       const plenarios = eventos.filter(e =>
         (e.localCamara?.nome || "").toLowerCase().includes("plenário") ||
         (e.descricao || "").toLowerCase().includes("plenário")
       ).length;
 
-      desenharGrafico(totalEventos, plenarios);
+      desenharGrafico(eventos.length, plenarios);
     });
 }
 
 /* GRÁFICO */
 function desenharGrafico(eventos, plenarios) {
-  const ctx = document.getElementById('grafico');
   if (chart) chart.destroy();
-
-  chart = new Chart(ctx, {
+  chart = new Chart(document.getElementById('grafico'), {
     type: 'bar',
     data: {
-      labels: ['Eventos', 'Atividades no Plenário'],
+      labels: ['Eventos', 'Plenário'],
       datasets: [{
         label: 'Quantidade',
         data: [eventos, plenarios],
