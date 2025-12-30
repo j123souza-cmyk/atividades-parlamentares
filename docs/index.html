@@ -13,14 +13,28 @@ nav button { margin-right: 8px; padding: 8px 12px; cursor: pointer; }
 .aba { display: none; }
 .ativa { display: block; }
 
-.votacao {
-  border-bottom: 1px solid #ccc;
-  padding: 10px 0;
+.filtros { margin: 12px 0; }
+.filtros input, .filtros select { padding: 6px; margin-right: 6px; }
+
+.deputado {
+  display: flex;
+  gap: 10px;
+  border-bottom: 1px solid #ddd;
+  padding: 8px 0;
+  cursor: pointer;
 }
-.aviso { color: #666; font-style: italic; }
-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-th, td { border: 1px solid #ccc; padding: 6px; font-size: 14px; }
+.deputado img { width: 60px; border-radius: 6px; }
+
+table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+th, td { border: 1px solid #ccc; padding: 6px; }
 th { background: #f0f0f0; }
+
+.ranking-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.progresso { margin: 10px 0; font-weight: bold; }
 </style>
 </head>
 <body>
@@ -30,107 +44,190 @@ th { background: #f0f0f0; }
 <nav>
   <button onclick="mostrar('lista')">Deputados</button>
   <button onclick="mostrar('ranking')">Ranking Presença</button>
-  <button onclick="mostrar('votacoes')">Votações</button>
 </nav>
 
 <section id="lista" class="aba ativa">
-<p>Use a aba de votações para ver o plenário.</p>
+<p id="status">Carregando deputados...</p>
+
+<div class="filtros">
+  <input id="filtroNome" placeholder="Nome" oninput="aplicarFiltros()">
+  <select id="filtroPartido" onchange="aplicarFiltros()">
+    <option value="">Partido</option>
+  </select>
+  <select id="filtroUf" onchange="aplicarFiltros()">
+    <option value="">UF</option>
+  </select>
+</div>
+
+<div id="listaDeputados"></div>
 </section>
 
 <section id="ranking" class="aba">
-<p>Ranking permanece igual.</p>
+<p id="statusRanking" class="progresso">Clique em gerar ranking</p>
+<button onclick="gerarRanking()">Gerar ranking</button>
+
+<div class="ranking-container">
+  <div>
+    <h3>Top 20 – Maior Presença</h3>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Nome</th><th>Partido</th><th>UF</th><th>%</th></tr>
+      </thead>
+      <tbody id="rankingMaior"></tbody>
+    </table>
+  </div>
+  <div>
+    <h3>Top 20 – Menor Presença</h3>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Nome</th><th>Partido</th><th>UF</th><th>%</th></tr>
+      </thead>
+      <tbody id="rankingMenor"></tbody>
+    </table>
+  </div>
+</div>
 </section>
 
-<section id="votacoes" class="aba">
-<h2>Últimas votações em Plenário</h2>
-<p id="statusVotacoes">Carregando votações...</p>
-<div id="listaVotacoes"></div>
+<section id="detalhe" class="aba">
+<h2 id="nomeDeputado"></h2>
+<img id="fotoDeputado" width="120">
+<p id="presencaTexto"></p>
+<canvas id="grafico"></canvas>
 </section>
 
 <script>
 const BASE = "https://dadosabertos.camara.leg.br/api/v2";
-let votacoesCarregadas = false;
+const CACHE_DIAS = 7;
 
+let deputados = [];
+let deputadosFiltrados = [];
+let chart;
+
+/* ---------- UTIL ---------- */
 function mostrar(id) {
   document.querySelectorAll('.aba').forEach(a => a.classList.remove('ativa'));
   document.getElementById(id).classList.add('ativa');
-
-  if (id === 'votacoes' && !votacoesCarregadas) {
-    carregarVotacoes();
-    votacoesCarregadas = true;
-  }
 }
 
-async function carregarVotacoes() {
-  const status = document.getElementById("statusVotacoes");
-
-  try {
-    const resp = await fetch(
-      `${BASE}/votacoes?ordem=DESC&ordenarPor=dataHoraRegistro&itens=5&siglaOrgao=PLEN`
-    );
-    const json = await resp.json();
-
-    status.remove();
-
-    json.dados.forEach(v => {
-      const div = document.createElement("div");
-      div.className = "votacao";
-
-      div.innerHTML = `
-        <strong>${v.descricao || "Votação em Plenário"}</strong><br>
-        <small>${new Date(v.dataHoraRegistro).toLocaleString("pt-BR")}</small><br>
-        Tipo: <b>${v.tipoVotacao}</b><br>
-        Resultado: <b>${v.aprovacao || "Não informado"}</b><br>
-      `;
-
-      if (v.tipoVotacao === "NOMINAL") {
-        const btn = document.createElement("button");
-        btn.innerText = "Ver votos";
-        btn.onclick = () => carregarVotos(v.id, div);
-        div.appendChild(btn);
-      } else {
-        div.innerHTML += `<p class="aviso">Votação simbólica — não há votos individuais.</p>`;
-      }
-
-      listaVotacoes.appendChild(div);
-    });
-
-  } catch (e) {
-    status.innerText = "Erro ao carregar votações.";
-    console.error(e);
-  }
+function cacheValido(item) {
+  return item && (Date.now() - item.timestamp) < (CACHE_DIAS*24*60*60*1000);
 }
 
-async function carregarVotos(id, container) {
-  container.innerHTML += "<p>Carregando votos...</p>";
+/* ---------- LISTA ---------- */
+fetch(`${BASE}/deputados?ordem=ASC&ordenarPor=nome`)
+.then(r => r.json())
+.then(j => {
+  document.getElementById('status').remove();
+  deputados = j.dados;
+  deputadosFiltrados = deputados;
+  preencherFiltros(deputados);
+  renderizarLista(deputados);
+});
 
-  const resp = await fetch(`${BASE}/votacoes/${id}/votos`);
-  const json = await resp.json();
+function preencherFiltros(lista) {
+  [...new Set(lista.map(d => d.siglaPartido))].sort()
+    .forEach(p => filtroPartido.innerHTML += `<option>${p}</option>`);
+  [...new Set(lista.map(d => d.siglaUf))].sort()
+    .forEach(u => filtroUf.innerHTML += `<option>${u}</option>`);
+}
 
-  const table = document.createElement("table");
-  table.innerHTML = `
-    <tr>
-      <th>Deputado</th>
-      <th>Partido</th>
-      <th>UF</th>
-      <th>Voto</th>
-    </tr>
-  `;
+function aplicarFiltros() {
+  deputadosFiltrados = deputados.filter(d =>
+    d.nome.toLowerCase().includes(filtroNome.value.toLowerCase()) &&
+    (!filtroPartido.value || d.siglaPartido === filtroPartido.value) &&
+    (!filtroUf.value || d.siglaUf === filtroUf.value)
+  );
+  renderizarLista(deputadosFiltrados);
+}
 
-  json.dados.forEach(v => {
-    table.innerHTML += `
-      <tr>
-        <td>${v.deputado_.nome}</td>
-        <td>${v.deputado_.siglaPartido}</td>
-        <td>${v.deputado_.siglaUf}</td>
-        <td>${v.tipoVoto}</td>
-      </tr>
+function renderizarLista(lista) {
+  listaDeputados.innerHTML = "";
+  lista.forEach(d => {
+    const div = document.createElement('div');
+    div.className = "deputado";
+    div.innerHTML = `
+      <img src="${d.urlFoto}">
+      <div><strong>${d.nome}</strong><br>${d.siglaPartido}-${d.siglaUf}</div>
     `;
+    div.onclick = () => abrirDetalhe(d);
+    listaDeputados.appendChild(div);
   });
+}
 
-  container.appendChild(table);
+/* ---------- PRESENÇA ---------- */
+async function calcularPresenca(dep) {
+  const chave = `presenca_${dep.id}`;
+  const cache = JSON.parse(localStorage.getItem(chave));
+  if (cacheValido(cache)) return cache.data;
+
+  const fim = new Date();
+  const ini = new Date(); ini.setFullYear(fim.getFullYear()-1);
+
+  const r = await fetch(
+    `${BASE}/deputados/${dep.id}/eventos?dataInicio=${ini.toISOString().slice(0,10)}&dataFim=${fim.toISOString().slice(0,10)}&itens=1000`
+  );
+  const j = await r.json();
+  const ev = j.dados || [];
+
+  const plen = ev.filter(e =>
+    (e.localCamara?.nome || "").toLowerCase().includes("plenário")
+  ).length;
+
+  const presenca = ev.length ? Math.round(plen/ev.length*100) : 0;
+  const data = { presenca, total: ev.length, plenarios: plen };
+
+  localStorage.setItem(chave, JSON.stringify({ timestamp: Date.now(), data }));
+  return data;
+}
+
+/* ---------- DETALHE ---------- */
+async function abrirDetalhe(dep) {
+  mostrar('detalhe');
+
+  nomeDeputado.innerText = dep.nome;
+  fotoDeputado.src = dep.urlFoto;
+
+  const r = await calcularPresenca(dep);
+  presencaTexto.innerText = `Presença em plenário: ${r.presenca}%`;
+
+  if (chart) chart.destroy();
+  chart = new Chart(grafico, {
+    type: 'bar',
+    data: {
+      labels: ['Eventos', 'Plenário'],
+      datasets: [{ data: [r.total, r.plenarios] }]
+    },
+    options: {
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+    }
+  });
+}
+
+/* ---------- RANKING ---------- */
+async function gerarRanking() {
+  rankingMaior.innerHTML = "";
+  rankingMenor.innerHTML = "";
+  statusRanking.innerText = "Calculando...";
+
+  const dados = [];
+  let i = 1;
+
+  for (const d of deputadosFiltrados) {
+    statusRanking.innerText = `Calculando ${i++}/${deputadosFiltrados.length}`;
+    const r = await calcularPresenca(d);
+    dados.push({ ...d, presenca: r.presenca });
+  }
+
+  dados.sort((a,b)=>b.presenca-a.presenca).slice(0,20)
+    .forEach((d,i)=>rankingMaior.innerHTML +=
+      `<tr><td>${i+1}</td><td>${d.nome}</td><td>${d.siglaPartido}</td><td>${d.siglaUf}</td><td>${d.presenca}%</td></tr>`);
+
+  dados.sort((a,b)=>a.presenca-b.presenca).slice(0,20)
+    .forEach((d,i)=>rankingMenor.innerHTML +=
+      `<tr><td>${i+1}</td><td>${d.nome}</td><td>${d.siglaPartido}</td><td>${d.siglaUf}</td><td>${d.presenca}%</td></tr>`);
+
+  statusRanking.innerText = "Ranking pronto (cache)";
 }
 </script>
-
 </body>
 </html>
