@@ -12,6 +12,9 @@ body { font-family: Arial, sans-serif; margin: 20px; }
 .detalhe { margin-top: 8px; padding: 10px; background: #fafafa; border-left: 3px solid #005ea8; }
 .oculto { display: none; }
 #status { font-weight: bold; margin-bottom: 10px; }
+.votacao { margin-bottom: 15px; }
+.voto-grupo { margin-left: 15px; }
+.toggle { color: #005ea8; cursor: pointer; font-size: 13px; }
 </style>
 </head>
 
@@ -38,7 +41,7 @@ const lista = document.getElementById("lista");
 const seletor = document.getElementById("periodo");
 
 /* =====================
-   BUSCA COM PARADA INTELIGENTE
+   BUSCA DE SESSÕES
 ===================== */
 async function carregarSessoes() {
   lista.innerHTML = "";
@@ -63,22 +66,17 @@ async function carregarSessoes() {
     );
     const json = await resp.json();
     const dados = json.dados || [];
-
     if (!dados.length) break;
 
     for (const ev of dados) {
       const dataEvento = new Date(ev.dataHoraInicio);
-      if (dataEvento < inicio) {
-        continuar = false;
-        break;
-      }
+      if (dataEvento < inicio) { continuar = false; break; }
 
       const t = ((ev.titulo || "") + (ev.descricao || "")).toLowerCase();
       if (t.includes("sessão") && t.includes("deliberativa")) {
         sessoesFiltradas.push(ev);
       }
     }
-
     pagina++;
   }
 
@@ -107,11 +105,10 @@ function criarSessao(ev) {
 }
 
 /* =====================
-   DETALHES
+   DETALHES DA SESSÃO
 ===================== */
 function abrirSessao(ev) {
   const box = document.getElementById(`det-${ev.id}`);
-
   if (!box.classList.contains("oculto")) {
     box.classList.add("oculto");
     return;
@@ -129,15 +126,21 @@ function abrirSessao(ev) {
 }
 
 /* =====================
-   VOTAÇÕES DETALHADAS
+   VOTAÇÕES
 ===================== */
 function carregarDetalhesVotacoes(ev, votacoes, box) {
 
   let html = `
     <strong>Sessão para votação de propostas legislativas</strong><br><br>
     <strong>Local:</strong> Plenário da Câmara dos Deputados<br>
-    <strong>Início:</strong> ${new Date(ev.dataHoraInicio).toLocaleString()}<br><br>
+    <strong>Início:</strong> ${new Date(ev.dataHoraInicio).toLocaleString()}<br>
   `;
+
+  if (ev.urlVideo || ev.urlRegistro) {
+    html += `<strong>Vídeo:</strong> <a href="${ev.urlVideo || ev.urlRegistro}" target="_blank">Assistir sessão</a><br><br>`;
+  } else {
+    html += `<em>Vídeo não informado pela API.</em><br><br>`;
+  }
 
   if (!votacoes.length) {
     box.innerHTML = html + "Nenhuma votação registrada.";
@@ -154,30 +157,39 @@ function carregarDetalhesVotacoes(ev, votacoes, box) {
         .then(d => d.dados)
         .catch(() => null)
     )
-  )
-  .then(listaDetalhes => {
+  ).then(listaDetalhes => {
     listaDetalhes.forEach(v => {
-      if (!v || !v.proposicoesAfetadas?.length) return;
+      if (!v) return;
 
-      v.proposicoesAfetadas.forEach(p => {
-        box.innerHTML += `
-          ➡️ <strong>${p.siglaTipo} ${p.numero}/${p.ano}</strong><br>
-          ${p.ementa || "Sem ementa"}<br>
-          <em>Resultado:</em> ${v.resultado || v.descricao || "Não informado"}<br><br>
-        `;
-      });
+      const proposicao = v.proposicoesAfetadas?.[0];
+      const tema = proposicao?.ementa || v.descricao || "Tema não informado";
+
+      box.innerHTML += `
+        <div class="votacao">
+          ➡️ <strong>${proposicao ? `${proposicao.siglaTipo} ${proposicao.numero}/${proposicao.ano}` : "Votação"}</strong><br>
+          ${tema}<br>
+          <strong>Resultado:</strong> ${v.resultado || "Não informado"}<br>
+          ${v.votos ? `
+            <strong>Placar:</strong>
+            👍 ${v.votos.SIM || 0} |
+            👎 ${v.votos.NAO || 0} |
+            ⚪ ${v.votos.ABSTENCAO || 0}
+            <div class="toggle" onclick="this.nextElementSibling.classList.toggle('oculto')">
+              Ver votos nominais
+            </div>
+            <div class="voto-grupo oculto">
+              ${(v.votacao?.map(dep => `${dep.nome} (${dep.voto})`).join("<br>")) || "Detalhamento não disponível"}
+            </div>
+          ` : `<em>Votação não nominal.</em>`}
+        </div>
+      `;
     });
 
     box.dataset.carregado = "1";
   });
 }
 
-/* =====================
-   EVENTO DO SELETOR
-===================== */
 seletor.addEventListener("change", carregarSessoes);
-
-/* Inicial */
 carregarSessoes();
 </script>
 
