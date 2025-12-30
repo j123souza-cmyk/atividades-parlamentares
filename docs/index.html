@@ -13,22 +13,14 @@ nav button { margin-right: 8px; padding: 8px 12px; cursor: pointer; }
 .aba { display: none; }
 .ativa { display: block; }
 
-.deputado {
-  display: flex;
-  gap: 10px;
-  border-bottom: 1px solid #ddd;
-  padding: 8px 0;
-  cursor: pointer;
+.votacao {
+  border-bottom: 1px solid #ccc;
+  padding: 10px 0;
 }
-.deputado img { width: 60px; border-radius: 6px; }
-
-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+.aviso { color: #666; font-style: italic; }
+table { width: 100%; border-collapse: collapse; margin-top: 8px; }
 th, td { border: 1px solid #ccc; padding: 6px; font-size: 14px; }
 th { background: #f0f0f0; }
-
-button.sec { padding: 4px 8px; }
-.votos { background: #fafafa; margin: 10px 0; padding: 10px; }
-.aviso { color: #777; font-style: italic; }
 </style>
 </head>
 <body>
@@ -42,21 +34,11 @@ button.sec { padding: 4px 8px; }
 </nav>
 
 <section id="lista" class="aba ativa">
-<p id="status">Carregando deputados...</p>
-<div id="listaDeputados"></div>
+<p>Use a aba de votações para ver o plenário.</p>
 </section>
 
 <section id="ranking" class="aba">
-<p id="statusRanking">Clique em gerar ranking</p>
-<button onclick="gerarRanking()">Gerar ranking</button>
-<div id="rankingResultado"></div>
-</section>
-
-<section id="detalhe" class="aba">
-<h2 id="nomeDeputado"></h2>
-<img id="fotoDeputado" width="120">
-<p id="presencaTexto"></p>
-<canvas id="grafico"></canvas>
+<p>Ranking permanece igual.</p>
 </section>
 
 <section id="votacoes" class="aba">
@@ -67,70 +49,66 @@ button.sec { padding: 4px 8px; }
 
 <script>
 const BASE = "https://dadosabertos.camara.leg.br/api/v2";
+let votacoesCarregadas = false;
 
-/* ---------- UTIL ---------- */
 function mostrar(id) {
   document.querySelectorAll('.aba').forEach(a => a.classList.remove('ativa'));
   document.getElementById(id).classList.add('ativa');
 
-  if (id === 'votacoes' && !window.votacoesCarregadas) {
+  if (id === 'votacoes' && !votacoesCarregadas) {
     carregarVotacoes();
-    window.votacoesCarregadas = true;
+    votacoesCarregadas = true;
   }
 }
 
-/* ---------- VOTAÇÕES ---------- */
 async function carregarVotacoes() {
-  const status = document.getElementById('statusVotacoes');
+  const status = document.getElementById("statusVotacoes");
 
   try {
-    const r = await fetch(
-      `${BASE}/votacoes?ordem=DESC&ordenarPor=dataHoraRegistro&itens=10`
+    const resp = await fetch(
+      `${BASE}/votacoes?ordem=DESC&ordenarPor=dataHoraRegistro&itens=5&siglaOrgao=PLEN`
     );
-    const j = await r.json();
+    const json = await resp.json();
 
     status.remove();
-    j.dados.forEach(v => renderizarVotacao(v));
+
+    json.dados.forEach(v => {
+      const div = document.createElement("div");
+      div.className = "votacao";
+
+      div.innerHTML = `
+        <strong>${v.descricao || "Votação em Plenário"}</strong><br>
+        <small>${new Date(v.dataHoraRegistro).toLocaleString("pt-BR")}</small><br>
+        Tipo: <b>${v.tipoVotacao}</b><br>
+        Resultado: <b>${v.aprovacao || "Não informado"}</b><br>
+      `;
+
+      if (v.tipoVotacao === "NOMINAL") {
+        const btn = document.createElement("button");
+        btn.innerText = "Ver votos";
+        btn.onclick = () => carregarVotos(v.id, div);
+        div.appendChild(btn);
+      } else {
+        div.innerHTML += `<p class="aviso">Votação simbólica — não há votos individuais.</p>`;
+      }
+
+      listaVotacoes.appendChild(div);
+    });
 
   } catch (e) {
-    status.innerText = "Erro ao carregar votações";
+    status.innerText = "Erro ao carregar votações.";
+    console.error(e);
   }
-}
-
-function renderizarVotacao(v) {
-  const div = document.createElement('div');
-  div.className = "votos";
-
-  div.innerHTML = `
-    <strong>${v.descricao || 'Votação'}</strong><br>
-    <small>
-      ${new Date(v.dataHoraRegistro).toLocaleString('pt-BR')} —
-      Tipo: ${v.tipoVotacao}
-    </small><br>
-    Resultado: <b>${v.aprovacao || 'Não informado'}</b><br>
-  `;
-
-  if (v.tipoVotacao === "NOMINAL") {
-    const btn = document.createElement('button');
-    btn.className = "sec";
-    btn.innerText = "Ver votos";
-    btn.onclick = () => carregarVotos(v.id, div);
-    div.appendChild(btn);
-  } else {
-    div.innerHTML += `<p class="aviso">Votação simbólica — não há votos individuais.</p>`;
-  }
-
-  listaVotacoes.appendChild(div);
 }
 
 async function carregarVotos(id, container) {
   container.innerHTML += "<p>Carregando votos...</p>";
 
-  const r = await fetch(`${BASE}/votacoes/${id}/votos`);
-  const j = await r.json();
+  const resp = await fetch(`${BASE}/votacoes/${id}/votos`);
+  const json = await resp.json();
 
-  const tabela = document.createElement('table');
-  tabela.innerHTML = `
+  const table = document.createElement("table");
+  table.innerHTML = `
     <tr>
       <th>Deputado</th>
       <th>Partido</th>
@@ -139,8 +117,8 @@ async function carregarVotos(id, container) {
     </tr>
   `;
 
-  j.dados.forEach(v => {
-    tabela.innerHTML += `
+  json.dados.forEach(v => {
+    table.innerHTML += `
       <tr>
         <td>${v.deputado_.nome}</td>
         <td>${v.deputado_.siglaPartido}</td>
@@ -150,8 +128,9 @@ async function carregarVotos(id, container) {
     `;
   });
 
-  container.appendChild(tabela);
+  container.appendChild(table);
 }
 </script>
+
 </body>
 </html>
