@@ -1,38 +1,142 @@
 <!DOCTYPE html>
 <html lang="pt-br">
+<head>
 <meta charset="UTF-8">
-<title>Teste Votações</title>
+<title>Votações da Câmara</title>
 
+<style>
+body { font-family: Arial, sans-serif; margin: 16px; }
+nav button { margin-right: 8px; padding: 8px 12px; cursor: pointer; }
+.aba { display: none; }
+.ativa { display: block; }
+
+.votacao {
+  border-bottom: 1px solid #ddd;
+  padding: 8px 0;
+}
+
+.voto {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  border-bottom: 1px solid #eee;
+  padding: 6px 0;
+}
+
+.voto img { width: 40px; border-radius: 6px; }
+
+.tag {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.sim { background: #c8e6c9; }
+.nao { background: #ffcdd2; }
+.abs { background: #e0e0e0; }
+</style>
+</head>
 <body>
-<h2>Votações (teste)</h2>
-<p id="status">Carregando...</p>
-<pre id="out"></pre>
+
+<h1>Votações Nominais</h1>
+
+<nav>
+  <button onclick="mostrar('lista')">Votações</button>
+  <button onclick="mostrar('detalhe')">Votos</button>
+</nav>
+
+<section id="lista" class="aba ativa">
+  <p id="statusVotacoes">Carregando votações...</p>
+  <div id="listaVotacoes"></div>
+</section>
+
+<section id="detalhe" class="aba">
+  <h2 id="tituloVotacao"></h2>
+  <p id="infoVotacao"></p>
+  <div id="listaVotos"></div>
+</section>
 
 <script>
 const BASE = "https://dadosabertos.camara.leg.br/api/v2";
 
-const fim = new Date();
-const inicio = new Date();
-inicio.setDate(fim.getDate() - 30);
+function mostrar(id) {
+  document.querySelectorAll('.aba').forEach(a => a.classList.remove('ativa'));
+  document.getElementById(id).classList.add('ativa');
+}
 
-const url =
-  `${BASE}/votacoes` +
-  `?dataInicio=${inicio.toISOString().slice(0,10)}` +
-  `&dataFim=${fim.toISOString().slice(0,10)}` +
-  `&ordem=DESC&ordenarPor=dataHoraRegistro&itens=5`;
-
-fetch(url)
+/* =========================
+   LISTAR VOTAÇÕES NOMINAIS
+========================= */
+fetch(`${BASE}/votacoes?ordem=DESC&ordenarPor=dataHoraRegistro&itens=20`)
   .then(r => r.json())
-  .then(j => {
-    const status = document.getElementById("status");
-    status.parentNode.removeChild(status);
+  .then(json => {
+    const status = document.getElementById("statusVotacoes");
+    if (status) status.innerText = "";
 
-    out.textContent = JSON.stringify(j.dados, null, 2);
+    json.dados.forEach(v => {
+      const div = document.createElement("div");
+      div.className = "votacao";
+      div.innerHTML = `
+        <strong>${new Date(v.data).toLocaleDateString()}</strong><br>
+        ${v.descricao || "Sem descrição"}<br>
+        <button>Ver votos</button>
+      `;
+      div.querySelector("button").onclick = () => abrirVotacao(v);
+      listaVotacoes.appendChild(div);
+    });
   })
-  .catch(e => {
-    document.getElementById("status").innerText = "Erro ao carregar";
-    out.textContent = e.message;
+  .catch(() => {
+    statusVotacoes.innerText = "Erro ao carregar votações";
   });
+
+/* =========================
+   ABRIR VOTAÇÃO E VOTOS
+========================= */
+function abrirVotacao(v) {
+  mostrar("detalhe");
+
+  tituloVotacao.innerText = `Votação em ${new Date(v.data).toLocaleDateString()}`;
+  infoVotacao.innerText = v.descricao || "";
+
+  listaVotos.innerHTML = "Carregando votos...";
+
+  fetch(`${BASE}/votacoes/${v.id}/votos?itens=1000`)
+    .then(r => r.json())
+    .then(json => {
+      const votos = json.dados || [];
+      listaVotos.innerHTML = "";
+
+      if (votos.length === 0) {
+        listaVotos.innerHTML = "Esta votação não possui votos nominais.";
+        return;
+      }
+
+      votos.forEach(vt => {
+        const voto = document.createElement("div");
+        voto.className = "voto";
+
+        let classe = "abs";
+        if (vt.voto === "Sim") classe = "sim";
+        if (vt.voto === "Não") classe = "nao";
+
+        voto.innerHTML = `
+          <img src="${vt.deputado_.urlFoto}">
+          <div>
+            <strong>${vt.deputado_.nome}</strong><br>
+            ${vt.deputado_.siglaPartido} - ${vt.deputado_.siglaUf}
+          </div>
+          <span class="tag ${classe}">${vt.voto}</span>
+        `;
+
+        listaVotos.appendChild(voto);
+      });
+    })
+    .catch(() => {
+      listaVotos.innerHTML = "Erro ao carregar votos.";
+    });
+}
 </script>
+
 </body>
 </html>
