@@ -6,17 +6,65 @@
 
 <style>
 body { font-family: Arial, sans-serif; margin: 20px; }
-#controles { margin-bottom: 15px; }
-select { padding: 5px; }
-.evento { padding: 10px; border-bottom: 1px solid #ccc; cursor: pointer; }
+
+#controles {
+  margin-bottom: 15px;
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+select, input {
+  padding: 6px;
+  font-size: 14px;
+}
+
+.evento {
+  padding: 10px;
+  border-bottom: 1px solid #ccc;
+  cursor: pointer;
+}
+
 .evento:hover { background: #f2f2f2; }
-.detalhe { margin-top: 8px; padding: 10px; background: #fafafa; border-left: 3px solid #005ea8; }
+
+.importante {
+  background: #fff8e1;
+  border-left: 5px solid #ff9800;
+}
+
+.badge {
+  color: #e65100;
+  font-weight: bold;
+  margin-left: 6px;
+}
+
+.detalhe {
+  margin-top: 8px;
+  padding: 10px;
+  background: #fafafa;
+  border-left: 3px solid #005ea8;
+}
+
 .oculto { display: none; }
+
 #status { font-weight: bold; margin-bottom: 10px; }
+
 .proposicao { margin-bottom: 14px; }
+
 .resultado { font-style: italic; margin: 4px 0; }
+
 .votos { font-weight: bold; margin-top: 4px; }
+
 .video { margin: 8px 0; }
+
+.busca {
+  margin: 10px 0;
+  width: 100%;
+}
+.busca input {
+  width: 100%;
+  box-sizing: border-box;
+}
 </style>
 </head>
 
@@ -25,11 +73,17 @@ select { padding: 5px; }
 <h2>Últimas Sessões do Plenário</h2>
 
 <div id="controles">
-  Período:
-  <select id="periodo">
-    <option value="3" selected>Últimos 3 meses</option>
-    <option value="6">Últimos 6 meses</option>
-  </select>
+  <div>
+    Período:
+    <select id="periodo">
+      <option value="3" selected>Últimos 3 meses</option>
+      <option value="6">Últimos 6 meses</option>
+    </select>
+  </div>
+
+  <div class="busca">
+    🔎 <input type="text" id="buscaGeral" placeholder="Buscar texto nas sessões…" />
+  </div>
 </div>
 
 <div id="status">Carregando sessões…</div>
@@ -40,6 +94,7 @@ const BASE = "https://dadosabertos.camara.leg.br/api/v2";
 const status = document.getElementById("status");
 const lista = document.getElementById("lista");
 const seletorPeriodo = document.getElementById("periodo");
+const buscaGeral = document.getElementById("buscaGeral");
 
 /* =====================
    BUSCAR SESSÕES
@@ -71,15 +126,7 @@ async function carregarSessoes() {
     if (!dados.length) break;
 
     for (const ev of dados) {
-      const dataEvento = new Date(ev.dataHoraInicio);
-      if (dataEvento < inicio) {
-        continuar = false;
-        break;
-      }
-
       const texto = ((ev.titulo || "") + (ev.descricao || "")).toLowerCase();
-
-      // ✅ FILTRO CORRIGIDO
       if (
         texto.includes("sessão") &&
         !texto.includes("audiência") &&
@@ -105,6 +152,7 @@ async function carregarSessoes() {
 function criarSessao(ev) {
   const div = document.createElement("div");
   div.className = "evento";
+  div.id = `sessao-${ev.id}`;
 
   div.innerHTML = `
     <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong><br>
@@ -112,14 +160,14 @@ function criarSessao(ev) {
     <div id="det-${ev.id}" class="detalhe oculto"></div>
   `;
 
-  div.onclick = () => abrirSessao(ev);
+  div.onclick = () => abrirSessao(ev, div);
   lista.appendChild(div);
 }
 
 /* =====================
    ABRIR SESSÃO
 ===================== */
-function abrirSessao(ev) {
+function abrirSessao(ev, bloco) {
   const box = document.getElementById(`det-${ev.id}`);
   box.classList.toggle("oculto");
 
@@ -129,14 +177,15 @@ function abrirSessao(ev) {
 
   fetch(`${BASE}/eventos/${ev.id}/votacoes`)
     .then(r => r.json())
-    .then(res => carregarDetalhes(ev, res.dados || [], box))
+    .then(res => carregarDetalhes(ev, res.dados || [], box, bloco))
     .catch(() => box.innerText = "Erro ao carregar votações.");
 }
 
 /* =====================
-   DETALHES
+   DETALHES + DESTAQUE
 ===================== */
-async function carregarDetalhes(ev, votacoes, box) {
+async function carregarDetalhes(ev, votacoes, box, blocoSessao) {
+
   let html = `
     <strong>Sessão para votação de propostas legislativas</strong><br><br>
     <strong>Local:</strong> Plenário da Câmara dos Deputados<br>
@@ -148,13 +197,12 @@ async function carregarDetalhes(ev, votacoes, box) {
     html += `<div class="video">▶ <a href="${link}" target="_blank">Assistir vídeo da sessão</a></div>`;
   }
 
-  if (!votacoes.length) {
-    box.innerHTML = html + "<br>Nenhuma votação registrada.";
-    box.dataset.carregado = "1";
-    return;
-  }
+  html += `<div class="lista-props"></div>`;
 
-  box.innerHTML = html + "<br><strong>Votações realizadas:</strong><br><br>";
+  box.innerHTML = html;
+
+  const containerProps = box.querySelector(".lista-props");
+  let contadorVotacoes = 0;
 
   for (const v of votacoes) {
     const resp = await fetch(`${BASE}/votacoes/${v.id}`);
@@ -162,23 +210,51 @@ async function carregarDetalhes(ev, votacoes, box) {
     const voto = d.dados;
     if (!voto?.proposicoesAfetadas) continue;
 
+    contadorVotacoes++;
+
     const resultado = voto.resultado || voto.descricao || "Resultado não informado";
     const resumoVotos = voto.resumoVotacao || "";
 
     voto.proposicoesAfetadas.forEach(p => {
-      box.innerHTML += `
-        <div class="proposicao">
-          ➡️ <strong>${p.siglaTipo} ${p.numero}/${p.ano}</strong><br>
-          ${p.ementa || "Sem ementa"}<br>
-          <div class="resultado"><strong>Resultado:</strong> ${resultado}</div>
-          ${resumoVotos ? `<div class="votos">${resumoVotos}</div>` : ""}
-        </div>
+      const pHtml = document.createElement("div");
+      pHtml.className = "proposicao";
+      pHtml.innerHTML = `
+        ➡️ <strong>
+          <a href="https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${p.id}"
+             target="_blank">
+            ${p.siglaTipo} ${p.numero}/${p.ano}
+          </a>
+        </strong><br>
+        ${p.ementa || "Sem ementa"}<br>
+        <div class="resultado"><strong>Resultado:</strong> ${resultado}</div>
+        ${resumoVotos ? `<div class="votos">${resumoVotos}</div>` : ""}
       `;
+      containerProps.appendChild(pHtml);
     });
+  }
+
+  /* 🔥 Destaque de sessão importante */
+  if (contadorVotacoes >= 3) {
+    blocoSessao.classList.add("importante");
+    blocoSessao.querySelector("strong").innerHTML +=
+      `<span class="badge">🔥 Sessão Importante</span>`;
   }
 
   box.dataset.carregado = "1";
 }
+
+/* =====================
+   FILTRO DE SESSÕES PELO TEXTO
+===================== */
+buscaGeral.addEventListener("input", () => {
+  const termo = buscaGeral.value.toLowerCase();
+  document.querySelectorAll(".evento").forEach(sessao => {
+    const detalhe = sessao.querySelector(".detalhe");
+    const textoSessao = sessao.innerText.toLowerCase();
+    const textoDetalhe = detalhe?.innerText.toLowerCase() || "";
+    sessao.style.display = (textoSessao + textoDetalhe).includes(termo) ? "" : "none";
+  });
+});
 
 /* =====================
    EVENTOS
