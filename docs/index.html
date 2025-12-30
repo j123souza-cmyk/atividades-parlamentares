@@ -1,66 +1,41 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-  <meta charset="UTF-8">
-  <title>Atividades Parlamentares</title>
+<meta charset="UTF-8">
+<title>Atividades Parlamentares</title>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
-  <style>
-    body { font-family: Arial, sans-serif; margin: 16px; }
-    nav button { margin-right: 8px; padding: 8px 12px; cursor: pointer; }
+<style>
+body { font-family: Arial, sans-serif; margin: 16px; }
+nav button { margin-right: 8px; padding: 8px 12px; cursor: pointer; }
 
-    .aba { display: none; }
-    .ativa { display: block; }
+.aba { display: none; }
+.ativa { display: block; }
 
-    .filtros { margin: 12px 0; }
-    .filtros input, .filtros select {
-      padding: 6px;
-      margin-right: 6px;
-    }
+.filtros { margin: 12px 0; }
+.filtros input, .filtros select { padding: 6px; margin-right: 6px; }
 
-    .deputado {
-      display: flex;
-      gap: 10px;
-      border-bottom: 1px solid #ddd;
-      padding: 8px 0;
-      cursor: pointer;
-    }
-    .deputado img { width: 60px; border-radius: 6px; }
+.deputado {
+  display: flex;
+  gap: 10px;
+  border-bottom: 1px solid #ddd;
+  padding: 8px 0;
+  cursor: pointer;
+}
+.deputado img { width: 60px; border-radius: 6px; }
 
-    #detalhe img { width: 120px; border-radius: 8px; }
+table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+th, td { border: 1px solid #ccc; padding: 6px; }
+th { background: #f0f0f0; }
 
-    .presenca {
-      margin: 10px 0;
-      font-weight: bold;
-      font-size: 1.05em;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-    }
-
-    th, td {
-      border: 1px solid #ccc;
-      padding: 6px;
-      text-align: left;
-    }
-
-    th { background: #f0f0f0; }
-
-    .ranking-container {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-    }
-
-    .progresso {
-      margin: 10px 0;
-      font-weight: bold;
-    }
-  </style>
+.ranking-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.progresso { margin: 10px 0; font-weight: bold; }
+</style>
 </head>
 <body>
 
@@ -68,268 +43,178 @@
 
 <nav>
   <button onclick="mostrar('lista')">Deputados</button>
-  <button onclick="mostrar('ranking')">Ranking de Presença</button>
+  <button onclick="mostrar('ranking')">Ranking Presença</button>
   <button onclick="mostrar('detalhe')">Detalhes</button>
 </nav>
 
-<!-- LISTA -->
 <section id="lista" class="aba ativa">
-  <p id="status">Carregando deputados...</p>
+<p id="status">Carregando deputados...</p>
 
-  <div class="filtros">
-    <input type="text" id="filtroNome" placeholder="Filtrar por nome" oninput="aplicarFiltros()">
+<div class="filtros">
+  <input id="filtroNome" placeholder="Nome" oninput="aplicarFiltros()">
+  <select id="filtroPartido" onchange="aplicarFiltros()"><option value="">Partido</option></select>
+  <select id="filtroUf" onchange="aplicarFiltros()"><option value="">UF</option></select>
+</div>
 
-    <select id="filtroPartido" onchange="aplicarFiltros()">
-      <option value="">Partido</option>
-    </select>
-
-    <select id="filtroUf" onchange="aplicarFiltros()">
-      <option value="">UF</option>
-    </select>
-  </div>
-
-  <div id="listaDeputados"></div>
+<div id="listaDeputados"></div>
 </section>
 
-<!-- RANKING -->
 <section id="ranking" class="aba">
-  <p class="progresso" id="statusRanking">
-    Clique no botão para gerar o ranking com base nos filtros atuais
-  </p>
+<p id="statusRanking" class="progresso">Clique em gerar ranking</p>
+<button onclick="gerarRanking()">Gerar ranking</button>
 
-  <button onclick="gerarRankingPresenca()">Gerar ranking</button>
-
-  <div class="ranking-container">
-    <div>
-      <h3>Top 20 – Maior Presença</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Deputado</th>
-            <th>Partido</th>
-            <th>UF</th>
-            <th>Presença (%)</th>
-          </tr>
-        </thead>
-        <tbody id="rankingMaior"></tbody>
-      </table>
-    </div>
-
-    <div>
-      <h3>Top 20 – Menor Presença</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Deputado</th>
-            <th>Partido</th>
-            <th>UF</th>
-            <th>Presença (%)</th>
-          </tr>
-        </thead>
-        <tbody id="rankingMenor"></tbody>
-      </table>
-    </div>
+<div class="ranking-container">
+  <div>
+    <h3>Top 20 – Maior Presença</h3>
+    <table><tbody id="rankingMaior"></tbody></table>
   </div>
+  <div>
+    <h3>Top 20 – Menor Presença</h3>
+    <table><tbody id="rankingMenor"></tbody></table>
+  </div>
+</div>
 </section>
 
-<!-- DETALHE -->
 <section id="detalhe" class="aba">
-  <h2 id="nomeDeputado"></h2>
-  <img id="fotoDeputado">
-  <p class="presenca" id="presencaTexto"></p>
-  <canvas id="grafico" width="440" height="300"></canvas>
+<h2 id="nomeDeputado"></h2>
+<img id="fotoDeputado" width="120">
+<p id="presencaTexto"></p>
+<canvas id="grafico"></canvas>
 </section>
 
 <script>
 const BASE = "https://dadosabertos.camara.leg.br/api/v2";
+const CACHE_DIAS = 7;
+
 let deputados = [];
 let deputadosFiltrados = [];
-let chart = null;
+let chart;
 
+/* ---------- UTIL ---------- */
 function mostrar(id) {
   document.querySelectorAll('.aba').forEach(a => a.classList.remove('ativa'));
   document.getElementById(id).classList.add('ativa');
 }
 
-/* LISTA */
+function cacheValido(item) {
+  if (!item) return false;
+  const agora = Date.now();
+  return (agora - item.timestamp) < (CACHE_DIAS * 24 * 60 * 60 * 1000);
+}
+
+/* ---------- LOAD LISTA ---------- */
 fetch(`${BASE}/deputados?ordem=ASC&ordenarPor=nome`)
-  .then(r => r.json())
-  .then(json => {
-    const statusEl = document.getElementById('status');
-    if (statusEl) statusEl.remove();
-
-    deputados = json.dados;
-    deputadosFiltrados = deputados;
-
-    preencherFiltros(deputados);
-    renderizarLista(deputados);
-  });
+.then(r => r.json())
+.then(j => {
+  document.getElementById('status').remove();
+  deputados = j.dados;
+  deputadosFiltrados = deputados;
+  preencherFiltros(deputados);
+  renderizarLista(deputados);
+});
 
 function preencherFiltros(lista) {
   [...new Set(lista.map(d => d.siglaPartido))].sort()
-    .forEach(p => filtroPartido.innerHTML += `<option value="${p}">${p}</option>`);
-
+    .forEach(p => filtroPartido.innerHTML += `<option>${p}</option>`);
   [...new Set(lista.map(d => d.siglaUf))].sort()
-    .forEach(u => filtroUf.innerHTML += `<option value="${u}">${u}</option>`);
+    .forEach(u => filtroUf.innerHTML += `<option>${u}</option>`);
 }
 
 function aplicarFiltros() {
-  const nome = filtroNome.value.toLowerCase();
-  const partido = filtroPartido.value;
-  const uf = filtroUf.value;
-
   deputadosFiltrados = deputados.filter(d =>
-    d.nome.toLowerCase().includes(nome) &&
-    (!partido || d.siglaPartido === partido) &&
-    (!uf || d.siglaUf === uf)
+    d.nome.toLowerCase().includes(filtroNome.value.toLowerCase()) &&
+    (!filtroPartido.value || d.siglaPartido === filtroPartido.value) &&
+    (!filtroUf.value || d.siglaUf === filtroUf.value)
   );
-
   renderizarLista(deputadosFiltrados);
 }
 
 function renderizarLista(lista) {
   listaDeputados.innerHTML = "";
-  lista.forEach(dep => {
+  lista.forEach(d => {
     const div = document.createElement('div');
-    div.className = 'deputado';
-    div.innerHTML = `
-      <img src="${dep.urlFoto}">
-      <div>
-        <strong>${dep.nome}</strong><br>
-        ${dep.siglaPartido} - ${dep.siglaUf}
-      </div>
-    `;
-    div.onclick = () => abrirDetalhe(dep);
+    div.className = "deputado";
+    div.innerHTML = `<img src="${d.urlFoto}">
+      <div><b>${d.nome}</b><br>${d.siglaPartido}-${d.siglaUf}</div>`;
+    div.onclick = () => abrirDetalhe(d);
     listaDeputados.appendChild(div);
   });
 }
 
-/* DETALHE */
-function abrirDetalhe(dep) {
+/* ---------- PRESENÇA COM CACHE ---------- */
+async function calcularPresenca(dep) {
+  const chave = `presenca_${dep.id}`;
+  const cache = JSON.parse(localStorage.getItem(chave));
+
+  if (cacheValido(cache)) return cache.data;
+
+  const fim = new Date();
+  const ini = new Date(); ini.setFullYear(fim.getFullYear() - 1);
+
+  const r = await fetch(
+    `${BASE}/deputados/${dep.id}/eventos?dataInicio=${ini.toISOString().slice(0,10)}&dataFim=${fim.toISOString().slice(0,10)}&itens=1000`
+  );
+  const j = await r.json();
+  const ev = j.dados || [];
+
+  const plen = ev.filter(e =>
+    (e.localCamara?.nome || "").toLowerCase().includes("plenário")
+  ).length;
+
+  const presenca = ev.length ? Math.round(plen / ev.length * 100) : 0;
+
+  const data = { presenca, total: ev.length, plenarios: plen };
+  localStorage.setItem(chave, JSON.stringify({ timestamp: Date.now(), data }));
+  return data;
+}
+
+/* ---------- DETALHE ---------- */
+async function abrirDetalhe(dep) {
   mostrar('detalhe');
   nomeDeputado.innerText = dep.nome;
   fotoDeputado.src = dep.urlFoto;
 
-  calcularPresenca(dep).then(({ presenca, totalEventos, plenarios }) => {
-    presencaTexto.innerText = `Presença no plenário: ${presenca}%`;
-    desenharGrafico(totalEventos, plenarios);
+  const r = await calcularPresenca(dep);
+  presencaTexto.innerText = `Presença: ${r.presenca}%`;
+
+  if (chart) chart.destroy();
+  chart = new Chart(grafico, {
+    type: 'bar',
+    data: {
+      labels: ['Eventos', 'Plenário'],
+      datasets: [{ data: [r.total, r.plenarios] }]
+    },
+    options: { scales: { y: { beginAtZero: true } } }
   });
 }
 
-/* CÁLCULO DE PRESENÇA (REUTILIZÁVEL) */
-async function calcularPresenca(dep) {
-  const fim = new Date();
-  const inicio = new Date();
-  inicio.setFullYear(fim.getFullYear() - 1);
-
-  const di = inicio.toISOString().slice(0,10);
-  const df = fim.toISOString().slice(0,10);
-
-  try {
-    const r = await fetch(
-      `${BASE}/deputados/${dep.id}/eventos?dataInicio=${di}&dataFim=${df}&itens=1000`
-    );
-    const j = await r.json();
-    const eventos = j.dados || [];
-
-    const plenarios = eventos.filter(e =>
-      (e.localCamara?.nome || "").toLowerCase().includes("plenário") ||
-      (e.descricao || "").toLowerCase().includes("plenário")
-    ).length;
-
-    const presenca = eventos.length > 0
-      ? Math.round((plenarios / eventos.length) * 100)
-      : 0;
-
-    return { presenca, totalEventos: eventos.length, plenarios };
-  } catch {
-    return { presenca: 0, totalEventos: 0, plenarios: 0 };
-  }
-}
-
-/* RANKING */
-async function gerarRankingPresenca() {
+/* ---------- RANKING ---------- */
+async function gerarRanking() {
   rankingMaior.innerHTML = "";
   rankingMenor.innerHTML = "";
 
   const status = document.getElementById('statusRanking');
-  status.innerText = `Calculando presença de ${deputadosFiltrados.length} deputados...`;
+  status.innerText = "Processando...";
 
-  const resultados = [];
-  let count = 1;
+  const dados = [];
+  let i = 1;
 
-  for (const dep of deputadosFiltrados) {
-    status.innerText = `Calculando ${count}/${deputadosFiltrados.length}...`;
-    count++;
-
-    const r = await calcularPresenca(dep);
-
-    resultados.push({
-      nome: dep.nome,
-      partido: dep.siglaPartido,
-      uf: dep.siglaUf,
-      presenca: r.presenca
-    });
+  for (const d of deputadosFiltrados) {
+    status.innerText = `Calculando ${i++}/${deputadosFiltrados.length}`;
+    const r = await calcularPresenca(d);
+    dados.push({ nome: d.nome, partido: d.siglaPartido, uf: d.siglaUf, presenca: r.presenca });
   }
 
-  const maior = [...resultados]
-    .sort((a,b) => b.presenca - a.presenca)
-    .slice(0,20);
+  dados.sort((a,b)=>b.presenca-a.presenca).slice(0,20)
+    .forEach((d,i)=>rankingMaior.innerHTML+=
+      `<tr><td>${i+1}</td><td>${d.nome}</td><td>${d.partido}</td><td>${d.uf}</td><td>${d.presenca}%</td></tr>`);
 
-  const menor = [...resultados]
-    .sort((a,b) => a.presenca - b.presenca)
-    .slice(0,20);
+  dados.sort((a,b)=>a.presenca-b.presenca).slice(0,20)
+    .forEach((d,i)=>rankingMenor.innerHTML+=
+      `<tr><td>${i+1}</td><td>${d.nome}</td><td>${d.partido}</td><td>${d.uf}</td><td>${d.presenca}%</td></tr>`);
 
-  maior.forEach((d,i) => {
-    rankingMaior.innerHTML += `
-      <tr>
-        <td>${i+1}</td>
-        <td>${d.nome}</td>
-        <td>${d.partido}</td>
-        <td>${d.uf}</td>
-        <td>${d.presenca}%</td>
-      </tr>`;
-  });
-
-  menor.forEach((d,i) => {
-    rankingMenor.innerHTML += `
-      <tr>
-        <td>${i+1}</td>
-        <td>${d.nome}</td>
-        <td>${d.partido}</td>
-        <td>${d.uf}</td>
-        <td>${d.presenca}%</td>
-      </tr>`;
-  });
-
-  status.innerText = "Ranking concluído";
-}
-
-/* GRÁFICO */
-function desenharGrafico(eventos, plenarios) {
-  if (chart) chart.destroy();
-
-  chart = new Chart(document.getElementById('grafico'), {
-    type: 'bar',
-    data: {
-      labels: ['Eventos', 'Plenário'],
-      datasets: [{
-        data: [eventos, plenarios],
-        backgroundColor: ['#4CAF50', '#2196F3'],
-        minBarLength: 6
-      }]
-    },
-    options: {
-      responsive: false,
-      scales: {
-        y: { beginAtZero: true, ticks: { precision: 0 } }
-      }
-    }
-  });
+  status.innerText = "Ranking pronto (cacheado)";
 }
 </script>
-
 </body>
 </html>
