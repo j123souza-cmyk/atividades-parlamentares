@@ -6,12 +6,22 @@
 
 <style>
 body { font-family: Arial, sans-serif; margin: 16px; }
+
 .evento {
   border-bottom: 1px solid #ddd;
   padding: 10px 0;
+  cursor: pointer;
 }
-.evento strong { display:block; }
-.info { font-size: 13px; color: #555; }
+
+.evento strong {
+  display:block;
+}
+
+.info {
+  font-size: 13px;
+  color: #555;
+}
+
 .tag {
   display:inline-block;
   font-size:12px;
@@ -20,12 +30,24 @@ body { font-family: Arial, sans-serif; margin: 16px; }
   border-radius:4px;
   margin-top:4px;
 }
+
+.detalhe {
+  margin-top: 8px;
+  padding: 8px;
+  background: #f9f9f9;
+  font-size: 14px;
+  border-left: 3px solid #2196f3;
+}
+
+.oculto {
+  display: none;
+}
 </style>
 </head>
 <body>
 
 <h1>Sessões Deliberativas da Câmara</h1>
-<p><em>Nessas sessões ocorrem as votações oficiais.</em></p>
+<p><em>Clique em uma sessão para ver os detalhes.</em></p>
 
 <p id="status">Carregando sessões…</p>
 <div id="lista"></div>
@@ -35,7 +57,7 @@ const BASE = "https://dadosabertos.camara.leg.br/api/v2";
 const status = document.getElementById("status");
 const lista = document.getElementById("lista");
 
-// 🔹 Período: últimos 12 meses
+// período: últimos 12 meses
 const fim = new Date();
 const inicio = new Date();
 inicio.setFullYear(fim.getFullYear() - 1);
@@ -43,6 +65,9 @@ inicio.setFullYear(fim.getFullYear() - 1);
 const dataInicio = inicio.toISOString().slice(0, 10);
 const dataFim = fim.toISOString().slice(0, 10);
 
+/* =========================
+   LISTAR SESSÕES
+========================= */
 fetch(`${BASE}/eventos?dataInicio=${dataInicio}&dataFim=${dataFim}&ordem=DESC&ordenarPor=dataHoraInicio&itens=300`)
   .then(r => r.json())
   .then(json => {
@@ -54,26 +79,74 @@ fetch(`${BASE}/eventos?dataInicio=${dataInicio}&dataFim=${dataFim}&ordem=DESC&or
     });
 
     if (eventos.length === 0) {
-      status.innerText = "Nenhuma sessão deliberativa encontrada no período.";
+      status.innerText = "Nenhuma sessão deliberativa encontrada.";
       return;
     }
 
-    eventos.forEach(ev => {
-      const div = document.createElement("div");
-      div.className = "evento";
-      div.innerHTML = `
-        <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong>
-        ${ev.titulo || "Sessão deliberativa"}<br>
-        <span class="info">${ev.descricao || "Sessão com deliberação parlamentar."}</span><br>
-        <span class="tag">Sessão deliberativa</span>
-      `;
-      lista.appendChild(div);
-    });
+    eventos.forEach(ev => criarSessao(ev));
   })
-  .catch(err => {
-    console.error(err);
+  .catch(() => {
     status.innerText = "Erro ao carregar sessões.";
   });
+
+/* =========================
+   CRIAR CARD DA SESSÃO
+========================= */
+function criarSessao(ev) {
+  const div = document.createElement("div");
+  div.className = "evento";
+
+  div.innerHTML = `
+    <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong>
+    ${ev.titulo || "Sessão deliberativa"}<br>
+    <span class="info">${ev.descricao || ""}</span><br>
+    <span class="tag">Sessão deliberativa</span>
+
+    <div id="det-${ev.id}" class="detalhe oculto">
+      Carregando detalhes…
+    </div>
+  `;
+
+  div.onclick = () => toggleDetalhe(ev.id);
+  lista.appendChild(div);
+}
+
+/* =========================
+   ABRIR / FECHAR DETALHE
+========================= */
+function toggleDetalhe(id) {
+  const box = document.getElementById(`det-${id}`);
+
+  if (!box.classList.contains("oculto")) {
+    box.classList.add("oculto");
+    return;
+  }
+
+  box.classList.remove("oculto");
+
+  // se já carregou antes, não refaz fetch
+  if (box.dataset.carregado) return;
+
+  fetch(`${BASE}/eventos/${id}`)
+    .then(r => r.json())
+    .then(json => {
+      const ev = json.dados;
+      box.dataset.carregado = "1";
+
+      box.innerHTML = `
+        <strong>Órgão:</strong> ${ev.orgao?.nome || "—"}<br><br>
+        <strong>Descrição completa:</strong><br>
+        ${ev.descricao || "Sem descrição adicional."}<br><br>
+        <strong>Situação:</strong> ${ev.situacao || "—"}<br><br>
+        <a href="${ev.urlRegistro || ev.uri}" target="_blank">
+          Ver evento no site oficial
+        </a>
+      `;
+    })
+    .catch(() => {
+      box.innerText = "Erro ao carregar detalhes da sessão.";
+    });
+}
 </script>
 
 </body>
