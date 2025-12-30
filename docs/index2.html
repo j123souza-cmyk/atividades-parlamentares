@@ -12,13 +12,21 @@ body { font-family: Arial, sans-serif; margin: 16px; }
 }
 .evento strong { display:block; }
 .info { font-size: 13px; color: #555; }
+.tag {
+  display: inline-block;
+  font-size: 12px;
+  padding: 2px 6px;
+  background: #e3f2fd;
+  border-radius: 4px;
+  margin-top: 4px;
+}
 </style>
 </head>
 <body>
 
-<h1>Últimas Votações (Eventos Oficiais)</h1>
+<h1>Últimas Votações em Plenário</h1>
 
-<p id="status">Carregando votações…</p>
+<p id="status">Carregando sessões deliberativas…</p>
 <div id="lista"></div>
 
 <script>
@@ -26,17 +34,18 @@ const BASE = "https://dadosabertos.camara.leg.br/api/v2";
 const status = document.getElementById("status");
 const lista = document.getElementById("lista");
 
-fetch(`${BASE}/eventos?ordem=DESC&ordenarPor=dataHoraInicio&itens=150`)
+fetch(`${BASE}/eventos?ordem=DESC&ordenarPor=dataHoraInicio&itens=200`)
   .then(r => r.json())
   .then(json => {
     status.innerText = "";
 
-    const eventos = (json.dados || []).filter(e => {
-      const d = (e.descricao || "").toLowerCase();
+    const eventos = (json.dados || []).filter(ev => {
+      const texto =
+        ((ev.descricao || "") + " " + (ev.titulo || "")).toLowerCase();
+
       return (
-        d.includes("votaç") ||
-        d.includes("ordem do dia") ||
-        d.includes("delibera")
+        texto.includes("sessão") &&
+        (texto.includes("deliberativa") || texto.includes("ordem do dia"))
       );
     });
 
@@ -50,27 +59,30 @@ fetch(`${BASE}/eventos?ordem=DESC&ordenarPor=dataHoraInicio&itens=150`)
       div.className = "evento";
       div.innerHTML = `
         <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong>
-        ${extrairTema(ev.descricao)}<br>
-        <span class="info">${extrairResultado(ev.descricao)}</span>
+        ${extrairTema(ev.descricao || ev.titulo)}<br>
+        <span class="info">${extrairResultado(ev.descricao)}</span><br>
+        <span class="tag">Sessão deliberativa</span>
       `;
       lista.appendChild(div);
     });
   })
-  .catch(() => {
+  .catch(err => {
+    console.error(err);
     status.innerText = "Erro ao carregar eventos.";
   });
 
 function extrairTema(txt) {
-  if (!txt) return "";
+  if (!txt) return "Sessão deliberativa";
   return txt.split(".")[0];
 }
 
 function extrairResultado(txt) {
-  const t = (txt || "").toLowerCase();
+  if (!txt) return "Resultado: Registro de sessão";
+  const t = txt.toLowerCase();
   if (t.includes("aprov")) return "Resultado: Aprovado";
   if (t.includes("rejeit")) return "Resultado: Rejeitado";
   if (t.includes("retir")) return "Resultado: Retirado";
-  return "Resultado: Em deliberação";
+  return "Resultado: Sessão deliberativa";
 }
 </script>
 
