@@ -12,14 +12,8 @@
     .aba { display: none; }
     .ativa { display: block; }
 
-    .filtros {
-      margin: 12px 0;
-    }
-    .filtros input,
-    .filtros select {
-      padding: 6px;
-      margin-right: 6px;
-    }
+    .filtros { margin: 12px 0; }
+    .filtros input, .filtros select { padding: 6px; margin-right: 6px; }
 
     .deputado {
       display: flex; gap: 10px; border-bottom: 1px solid #ddd;
@@ -27,16 +21,8 @@
     }
     .deputado img { width: 60px; border-radius: 6px; }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-    }
-    th, td {
-      border: 1px solid #ccc;
-      padding: 6px;
-      text-align: left;
-    }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 6px; }
     th { background: #f0f0f0; }
 
     #detalhe img { width: 120px; border-radius: 8px; }
@@ -56,7 +42,7 @@
   <p id="status">Carregando deputados...</p>
 
   <div class="filtros">
-    <input type="text" id="filtroNome" placeholder="Buscar por nome" oninput="aplicarFiltros()">
+    <input type="text" id="filtroNome" placeholder="Nome" oninput="aplicarFiltros()">
     <select id="filtroPartido" onchange="aplicarFiltros()">
       <option value="">Partido</option>
     </select>
@@ -90,18 +76,16 @@
 <section id="detalhe" class="aba">
   <h2 id="nomeDeputado"></h2>
   <img id="fotoDeputado">
-  <p><strong>Atividades no último ano</strong></p>
   <canvas id="grafico" width="420" height="300"></canvas>
 </section>
 
 <script>
 const BASE = "https://dadosabertos.camara.leg.br/api/v2";
-let chart = null;
 let deputados = [];
 let deputadosFiltrados = [];
-let cacheEventos = {};
+let chart = null;
 
-function mostrar(id) {
+function mostrar(id){
   document.querySelectorAll('.aba').forEach(a => a.classList.remove('ativa'));
   document.getElementById(id).classList.add('ativa');
 }
@@ -109,157 +93,103 @@ function mostrar(id) {
 /* LISTA */
 fetch(`${BASE}/deputados?ordem=ASC&ordenarPor=nome`)
   .then(r => r.json())
-  .then(json => {
-    document.getElementById('status').remove();
-    deputados = json.dados;
+  .then(j => {
+    status.remove();
+    deputados = j.dados;
     deputadosFiltrados = deputados;
     preencherFiltros(deputados);
     renderizarLista(deputados);
   });
 
-function preencherFiltros(lista) {
-  [...new Set(lista.map(d => d.siglaPartido))].sort()
-    .forEach(p => filtroPartido.innerHTML += `<option>${p}</option>`);
-
-  [...new Set(lista.map(d => d.siglaUf))].sort()
-    .forEach(u => filtroUf.innerHTML += `<option>${u}</option>`);
+function preencherFiltros(lista){
+  [...new Set(lista.map(d=>d.siglaPartido))].sort()
+    .forEach(p=>filtroPartido.innerHTML+=`<option>${p}</option>`);
+  [...new Set(lista.map(d=>d.siglaUf))].sort()
+    .forEach(u=>filtroUf.innerHTML+=`<option>${u}</option>`);
 }
 
-function aplicarFiltros() {
-  const nome = filtroNome.value.toLowerCase();
-  const partido = filtroPartido.value;
-  const uf = filtroUf.value;
-
+function aplicarFiltros(){
+  const n=filtroNome.value.toLowerCase();
+  const p=filtroPartido.value;
+  const u=filtroUf.value;
   deputadosFiltrados = deputados.filter(d =>
-    d.nome.toLowerCase().includes(nome) &&
-    (partido === "" || d.siglaPartido === partido) &&
-    (uf === "" || d.siglaUf === uf)
+    d.nome.toLowerCase().includes(n) &&
+    (!p || d.siglaPartido===p) &&
+    (!u || d.siglaUf===u)
   );
-
   renderizarLista(deputadosFiltrados);
 }
 
-function renderizarLista(lista) {
-  listaDeputados.innerHTML = "";
-  lista.forEach(dep => {
-    const div = document.createElement('div');
-    div.className = 'deputado';
-    div.innerHTML = `
-      <img src="${dep.urlFoto}">
-      <div>
-        <strong>${dep.nome}</strong><br>
-        ${dep.siglaPartido} - ${dep.siglaUf}
-      </div>
-    `;
-    div.onclick = () => abrirDetalhe(dep);
+function renderizarLista(lista){
+  listaDeputados.innerHTML="";
+  lista.forEach(d=>{
+    const div=document.createElement("div");
+    div.className="deputado";
+    div.innerHTML=`
+      <img src="${d.urlFoto}">
+      <div><strong>${d.nome}</strong><br>${d.siglaPartido}-${d.siglaUf}</div>`;
+    div.onclick=()=>abrirDetalhe(d);
     listaDeputados.appendChild(div);
   });
 }
 
-/* RANKING */
-async function gerarRanking() {
-  statusRanking.innerText = "Calculando ranking...";
-  rankingBody.innerHTML = "";
+/* RANKING (CORRIGIDO) */
+async function gerarRanking(){
+  rankingBody.innerHTML="";
+  statusRanking.innerText="Calculando ranking...";
+  
+  const fim=new Date();
+  const ini=new Date();
+  ini.setFullYear(fim.getFullYear()-1);
+  const di=ini.toISOString().slice(0,10);
+  const df=fim.toISOString().slice(0,10);
 
-  const fim = new Date();
-  const inicio = new Date();
-  inicio.setFullYear(fim.getFullYear() - 1);
+  const resultado=[];
 
-  const dataIni = inicio.toISOString().slice(0,10);
-  const dataFim = fim.toISOString().slice(0,10);
+  let pos=1;
+  for(const d of deputadosFiltrados){
+    statusRanking.innerText = `Calculando ${pos}/${deputadosFiltrados.length}...`;
+    pos++;
 
-  const resultados = [];
+    try{
+      const r=await fetch(`${BASE}/deputados/${d.id}/eventos?dataInicio=${di}&dataFim=${df}&itens=1000`);
+      const j=await r.json();
+      const ev=j.dados||[];
 
-  for (const dep of deputadosFiltrados) {
-    if (!cacheEventos[dep.id]) {
-      const r = await fetch(
-        `${BASE}/deputados/${dep.id}/eventos?dataInicio=${dataIni}&dataFim=${dataFim}&itens=1000`
-      );
-      const j = await r.json();
-      cacheEventos[dep.id] = j.dados || [];
+      const plen=ev.filter(e =>
+        (e.localCamara?.nome||"").toLowerCase().includes("plenário") ||
+        (e.descricao||"").toLowerCase().includes("plenário")
+      ).length;
+
+      resultado.push({nome:d.nome,partido:d.siglaPartido,uf:d.siglaUf,eventos:ev.length,plen});
+    }catch{
+      resultado.push({nome:d.nome,partido:d.siglaPartido,uf:d.siglaUf,eventos:0,plen:0});
     }
-
-    const eventos = cacheEventos[dep.id];
-
-    const plenarios = eventos.filter(e =>
-      (e.localCamara?.nome || "").toLowerCase().includes("plenário") ||
-      (e.descricao || "").toLowerCase().includes("plenário")
-    ).length;
-
-    resultados.push({
-      nome: dep.nome,
-      partido: dep.siglaPartido,
-      uf: dep.siglaUf,
-      eventos: eventos.length,
-      plenarios
-    });
   }
 
-  resultados
-    .sort((a,b) => b.eventos - a.eventos)
-    .forEach((d,i) => {
-      rankingBody.innerHTML += `
-        <tr>
-          <td>${i+1}</td>
-          <td>${d.nome}</td>
-          <td>${d.partido}</td>
-          <td>${d.uf}</td>
-          <td>${d.eventos}</td>
-          <td>${d.plenarios}</td>
-        </tr>
-      `;
-    });
+  resultado.sort((a,b)=>b.eventos-a.eventos);
 
-  statusRanking.innerText = `Ranking gerado (${resultados.length} deputados)`;
+  resultado.forEach((d,i)=>{
+    rankingBody.innerHTML+=`
+    <tr>
+      <td>${i+1}</td>
+      <td>${d.nome}</td>
+      <td>${d.partido}</td>
+      <td>${d.uf}</td>
+      <td>${d.eventos}</td>
+      <td>${d.plen}</td>
+    </tr>`;
+  });
+
+  statusRanking.innerText=`Ranking gerado (${resultado.length})`;
 }
 
 /* DETALHE */
-function abrirDetalhe(dep) {
-  mostrar('detalhe');
-  nomeDeputado.innerText = dep.nome;
-  fotoDeputado.src = dep.urlFoto;
-
-  const fim = new Date();
-  const inicio = new Date();
-  inicio.setFullYear(fim.getFullYear() - 1);
-
-  const dataIni = inicio.toISOString().slice(0,10);
-  const dataFim = fim.toISOString().slice(0,10);
-
-  fetch(`${BASE}/deputados/${dep.id}/eventos?dataInicio=${dataIni}&dataFim=${dataFim}&itens=1000`)
-    .then(r => r.json())
-    .then(json => {
-      const eventos = json.dados || [];
-      const plenarios = eventos.filter(e =>
-        (e.localCamara?.nome || "").toLowerCase().includes("plenário") ||
-        (e.descricao || "").toLowerCase().includes("plenário")
-      ).length;
-
-      desenharGrafico(eventos.length, plenarios);
-    });
-}
-
-/* GRÁFICO */
-function desenharGrafico(eventos, plenarios) {
-  if (chart) chart.destroy();
-  chart = new Chart(document.getElementById('grafico'), {
-    type: 'bar',
-    data: {
-      labels: ['Eventos', 'Plenário'],
-      datasets: [{
-        label: 'Quantidade',
-        data: [eventos, plenarios],
-        backgroundColor: ['#4CAF50', '#2196F3'],
-        minBarLength: 6
-      }]
-    },
-    options: {
-      responsive: false,
-      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
-    }
-  });
+function abrirDetalhe(d){
+  mostrar("detalhe");
+  nomeDeputado.innerText=d.nome;
+  fotoDeputado.src=d.urlFoto;
 }
 </script>
-
 </body>
 </html>
