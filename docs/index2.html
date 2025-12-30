@@ -15,6 +15,28 @@ nav button { margin-right: 8px; padding: 8px 12px; cursor: pointer; }
   padding: 10px 0;
 }
 
+.tipoVotacao {
+  font-size: 12px;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #fff;
+  margin-left: 6px;
+}
+
+.nominal { background: #4CAF50; }
+.simbolica { background: #2196F3; }
+
+.tema {
+  font-size: 14px;
+}
+
+.resultado {
+  font-style: italic;
+  color: #555;
+  font-size: 13px;
+}
+
 .voto {
   display: flex;
   gap: 10px;
@@ -35,21 +57,11 @@ nav button { margin-right: 8px; padding: 8px 12px; cursor: pointer; }
 .sim { background: #c8e6c9; }
 .nao { background: #ffcdd2; }
 .abs { background: #e0e0e0; }
-
-.tema {
-  font-size: 14px;
-}
-
-.resultado {
-  font-style: italic;
-  color: #555;
-  font-size: 13px;
-}
 </style>
 </head>
 <body>
 
-<h1>Votações Nominais</h1>
+<h1>Votações da Câmara</h1>
 
 <nav>
   <button onclick="mostrar('lista')">Votações</button>
@@ -86,12 +98,8 @@ fetch(`${BASE}/votacoes?ordem=DESC&ordenarPor=dataHoraRegistro&itens=20`)
 
     json.dados.forEach(v => {
 
-      let tema = "Tema não especificado";
-
-      if (v.proposicaoObjeto) {
-        tema = v.proposicaoObjeto;
-      }
-
+      // Descrição completa
+      let tema = v.proposicaoObjeto || "Tema não especificado";
       const descricaoHtml = `
         <div class="tema">
           <strong>${v.siglaOrgao || "Órgão não informado"}</strong> —
@@ -102,18 +110,25 @@ fetch(`${BASE}/votacoes?ordem=DESC&ordenarPor=dataHoraRegistro&itens=20`)
         </div>
       `;
 
-      const div = document.createElement("div");
-      div.className = "votacao";
-      div.innerHTML = `
-        <strong>${new Date(v.data).toLocaleDateString()}</strong><br>
-        ${descricaoHtml}
-        <button>Ver votos</button>
-      `;
+      // Verifica se tem votos nominais
+      fetch(`${BASE}/votacoes/${v.id}/votos?itens=1`)
+        .then(r => r.json())
+        .then(votosJson => {
+          const tipo = (votosJson.dados && votosJson.dados.length > 0) ? "Nominal" : "Simbólica";
+          const classeTipo = tipo === "Nominal" ? "nominal" : "simbolica";
 
-      div.querySelector("button").onclick = () =>
-        abrirVotacao(v, descricaoHtml);
+          const div = document.createElement("div");
+          div.className = "votacao";
+          div.innerHTML = `
+            <strong>${new Date(v.data).toLocaleDateString()}</strong>
+            <span class="tipoVotacao ${classeTipo}">${tipo}</span><br>
+            ${descricaoHtml}
+            <button>Ver votos</button>
+          `;
 
-      listaVotacoes.appendChild(div);
+          div.querySelector("button").onclick = () => abrirVotacao(v, descricaoHtml, tipo);
+          listaVotacoes.appendChild(div);
+        });
     });
   })
   .catch(() => {
@@ -123,50 +138,50 @@ fetch(`${BASE}/votacoes?ordem=DESC&ordenarPor=dataHoraRegistro&itens=20`)
 /* =========================
    DETALHE DA VOTAÇÃO
 ========================= */
-function abrirVotacao(v, descricaoHtml) {
+function abrirVotacao(v, descricaoHtml, tipo) {
   mostrar("detalhe");
 
-  tituloVotacao.innerText =
-    `Votação em ${new Date(v.data).toLocaleDateString()}`;
-
+  tituloVotacao.innerText = `Votação em ${new Date(v.data).toLocaleDateString()} (${tipo})`;
   infoVotacao.innerHTML = descricaoHtml;
 
   listaVotos.innerHTML = "Carregando votos...";
 
-  fetch(`${BASE}/votacoes/${v.id}/votos?itens=1000`)
-    .then(r => r.json())
-    .then(json => {
-      const votos = json.dados || [];
-      listaVotos.innerHTML = "";
+  if (tipo === "Nominal") {
+    fetch(`${BASE}/votacoes/${v.id}/votos?itens=1000`)
+      .then(r => r.json())
+      .then(json => {
+        const votos = json.dados || [];
+        listaVotos.innerHTML = "";
 
-      if (votos.length === 0) {
-        listaVotos.innerHTML =
-          "Esta votação não possui votos nominais.";
-        return;
-      }
+        if (votos.length === 0) {
+          listaVotos.innerHTML = "Nenhum voto nominal registrado.";
+          return;
+        }
 
-      votos.forEach(vt => {
-        let classe = "abs";
-        if (vt.voto === "Sim") classe = "sim";
-        if (vt.voto === "Não") classe = "nao";
+        votos.forEach(vt => {
+          let classe = "abs";
+          if (vt.voto === "Sim") classe = "sim";
+          if (vt.voto === "Não") classe = "nao";
 
-        const voto = document.createElement("div");
-        voto.className = "voto";
-        voto.innerHTML = `
-          <img src="${vt.deputado_.urlFoto}">
-          <div>
-            <strong>${vt.deputado_.nome}</strong><br>
-            ${vt.deputado_.siglaPartido} - ${vt.deputado_.siglaUf}
-          </div>
-          <span class="tag ${classe}">${vt.voto}</span>
-        `;
-
-        listaVotos.appendChild(voto);
+          const voto = document.createElement("div");
+          voto.className = "voto";
+          voto.innerHTML = `
+            <img src="${vt.deputado_.urlFoto}">
+            <div>
+              <strong>${vt.deputado_.nome}</strong><br>
+              ${vt.deputado_.siglaPartido} - ${vt.deputado_.siglaUf}
+            </div>
+            <span class="tag ${classe}">${vt.voto}</span>
+          `;
+          listaVotos.appendChild(voto);
+        });
+      })
+      .catch(() => {
+        listaVotos.innerHTML = "Erro ao carregar votos.";
       });
-    })
-    .catch(() => {
-      listaVotos.innerHTML = "Erro ao carregar votos.";
-    });
+  } else {
+    listaVotos.innerHTML = "Esta votação é simbólica e não possui votos nominais.";
+  }
 }
 </script>
 
