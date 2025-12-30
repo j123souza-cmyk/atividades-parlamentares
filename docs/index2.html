@@ -6,7 +6,7 @@
 
 <style>
 body { font-family: Arial, sans-serif; margin: 16px; }
-button { padding: 6px 10px; margin-top: 6px; cursor: pointer; }
+h1 { margin-bottom: 10px; }
 
 .votacao {
   border-bottom: 1px solid #ddd;
@@ -16,6 +16,12 @@ button { padding: 6px 10px; margin-top: 6px; cursor: pointer; }
 .tema { font-size: 14px; }
 .resultado { font-size: 13px; color: #555; font-style: italic; }
 
+button {
+  margin-top: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
 .voto {
   display: flex;
   gap: 10px;
@@ -23,6 +29,7 @@ button { padding: 6px 10px; margin-top: 6px; cursor: pointer; }
   border-bottom: 1px solid #eee;
   padding: 6px 0;
 }
+
 .voto img { width: 40px; border-radius: 6px; }
 
 .tag {
@@ -40,7 +47,7 @@ button { padding: 6px 10px; margin-top: 6px; cursor: pointer; }
 
 <h1>Votações da Câmara (com tema)</h1>
 
-<div id="status">Carregando votações...</div>
+<div id="status">Carregando votações…</div>
 <div id="listaVotacoes"></div>
 
 <hr>
@@ -50,18 +57,27 @@ button { padding: 6px 10px; margin-top: 6px; cursor: pointer; }
 <div id="listaVotos"></div>
 
 <script>
-const BASE = "https://dadosabertos.camara.leg.br/api/v2";
+const API = "https://dadosabertos.camara.leg.br/api/v2";
+const PROXY = "https://corsproxy.io/?";
+
+const status = document.getElementById("status");
+const listaVotacoes = document.getElementById("listaVotacoes");
 
 /* =====================
    LISTAR VOTAÇÕES
 ===================== */
-fetch(`${BASE}/votacoes?ordem=DESC&ordenarPor=dataHoraRegistro&itens=50`)
-  .then(res => res.json())
+fetch(PROXY + encodeURIComponent(`${API}/votacoes?ordem=DESC&ordenarPor=dataHoraRegistro&itens=30`))
+  .then(r => r.json())
   .then(json => {
     status.innerText = "";
 
+    if (!json.dados || json.dados.length === 0) {
+      status.innerText = "Nenhuma votação encontrada.";
+      return;
+    }
+
     json.dados
-      .filter(v => v.proposicaoObjeto) // SOMENTE COM TEMA
+      .filter(v => v.proposicaoObjeto) // só com tema
       .forEach(v => {
         const div = document.createElement("div");
         div.className = "votacao";
@@ -69,13 +85,10 @@ fetch(`${BASE}/votacoes?ordem=DESC&ordenarPor=dataHoraRegistro&itens=50`)
         div.innerHTML = `
           <strong>${new Date(v.data).toLocaleDateString()}</strong><br>
           <div class="tema">
-            <strong>${v.siglaOrgao || "Órgão não informado"}</strong> —
-            ${v.proposicaoObjeto}
+            <strong>${v.siglaOrgao || "Órgão"}</strong> — ${v.proposicaoObjeto}
           </div>
-          <div class="resultado">
-            ${v.descricao || ""}
-          </div>
-          <button>Ver votos</button>
+          <div class="resultado">${v.descricao || ""}</div>
+          <button>Ver votos nominais</button>
         `;
 
         div.querySelector("button").onclick = () => carregarVotos(v);
@@ -83,31 +96,33 @@ fetch(`${BASE}/votacoes?ordem=DESC&ordenarPor=dataHoraRegistro&itens=50`)
         listaVotacoes.appendChild(div);
       });
   })
-  .catch(() => {
+  .catch(err => {
+    console.error(err);
     status.innerText = "Erro ao carregar votações.";
   });
 
 /* =====================
-   DETALHE DA VOTAÇÃO
+   CARREGAR VOTOS
 ===================== */
 function carregarVotos(v) {
-  tituloDetalhe.innerText = `Votação de ${new Date(v.data).toLocaleDateString()}`;
+  tituloDetalhe.innerText = `Votação — ${new Date(v.data).toLocaleDateString()}`;
   infoDetalhe.innerHTML = `
-    <strong>${v.siglaOrgao}</strong> — ${v.proposicaoObjeto}<br>
+    <strong>${v.siglaOrgao}</strong><br>
+    ${v.proposicaoObjeto}<br>
     <em>${v.descricao || ""}</em>
   `;
 
-  listaVotos.innerHTML = "Carregando votos nominais...";
+  listaVotos.innerHTML = "Carregando votos…";
 
-  fetch(`${BASE}/votacoes/${v.id}/votos?itens=1000`)
-    .then(res => res.json())
+  fetch(PROXY + encodeURIComponent(`${API}/votacoes/${v.id}/votos?itens=1000`))
+    .then(r => r.json())
     .then(json => {
       const votos = json.dados || [];
       listaVotos.innerHTML = "";
 
       if (votos.length === 0) {
         listaVotos.innerHTML =
-          "Esta votação não é nominal (foi simbólica ou sem registro individual).";
+          "Esta votação não foi nominal (simbólica ou sem registro individual).";
         return;
       }
 
