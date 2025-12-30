@@ -6,26 +6,44 @@
 
 <style>
 body { font-family: Arial, sans-serif; margin: 20px; }
-#controles { margin-bottom: 15px; }
+#controles { margin-bottom: 15px; display: flex; gap: 20px; align-items: center; }
+select { padding: 5px; }
 .evento { padding: 10px; border-bottom: 1px solid #ccc; cursor: pointer; }
 .evento:hover { background: #f2f2f2; }
 .detalhe { margin-top: 8px; padding: 10px; background: #fafafa; border-left: 3px solid #005ea8; }
 .oculto { display: none; }
 #status { font-weight: bold; margin-bottom: 10px; }
-.placar { margin-top: 6px; font-weight: bold; }
+.proposicao { margin-bottom: 12px; }
+.votos { font-weight: bold; margin-top: 4px; }
+.video { margin: 8px 0; }
 </style>
 </head>
 
 <body>
 
-<h2>Últimas Sessões Deliberativas do Plenário</h2>
+<h2>Últimas Sessões do Plenário</h2>
 
 <div id="controles">
-  Período:
-  <select id="periodo">
-    <option value="3" selected>Últimos 3 meses</option>
-    <option value="6">Últimos 6 meses</option>
-  </select>
+  <div>
+    Período:
+    <select id="periodo">
+      <option value="3" selected>Últimos 3 meses</option>
+      <option value="6">Últimos 6 meses</option>
+    </select>
+  </div>
+
+  <div>
+    Tipo de proposição:
+    <select id="filtroTipo">
+      <option value="">Todas</option>
+      <option value="PL">PL</option>
+      <option value="PEC">PEC</option>
+      <option value="PLP">PLP</option>
+      <option value="MP">MP</option>
+      <option value="PDL">PDL</option>
+      <option value="REQ">REQ</option>
+    </select>
+  </div>
 </div>
 
 <div id="status">Carregando sessões…</div>
@@ -35,22 +53,23 @@ body { font-family: Arial, sans-serif; margin: 20px; }
 const BASE = "https://dadosabertos.camara.leg.br/api/v2";
 const status = document.getElementById("status");
 const lista = document.getElementById("lista");
-const seletor = document.getElementById("periodo");
+const seletorPeriodo = document.getElementById("periodo");
+const seletorTipo = document.getElementById("filtroTipo");
 
 /* =====================
-   CARREGAR SESSÕES
+   BUSCAR SESSÕES
 ===================== */
 async function carregarSessoes() {
   lista.innerHTML = "";
   status.innerText = "Carregando sessões…";
 
-  const meses = parseInt(seletor.value);
+  const meses = parseInt(seletorPeriodo.value);
   const fim = new Date();
   const inicio = new Date();
   inicio.setMonth(fim.getMonth() - meses);
 
-  const dataInicio = inicio.toISOString().slice(0,10);
-  const dataFim = fim.toISOString().slice(0,10);
+  const dataInicio = inicio.toISOString().slice(0, 10);
+  const dataFim = fim.toISOString().slice(0, 10);
 
   let pagina = 1;
   let sessoes = [];
@@ -63,13 +82,17 @@ async function carregarSessoes() {
     );
     const json = await resp.json();
     const dados = json.dados || [];
+
     if (!dados.length) break;
 
     for (const ev of dados) {
-      const dataEv = new Date(ev.dataHoraInicio);
-      if (dataEv < inicio) { continuar = false; break; }
+      const dataEvento = new Date(ev.dataHoraInicio);
+      if (dataEvento < inicio) {
+        continuar = false;
+        break;
+      }
 
-      const t = ((ev.titulo||"") + (ev.descricao||"")).toLowerCase();
+      const t = ((ev.titulo || "") + (ev.descricao || "")).toLowerCase();
       if (t.includes("sessão") && t.includes("deliberativa")) {
         sessoes.push(ev);
       }
@@ -90,11 +113,13 @@ async function carregarSessoes() {
 function criarSessao(ev) {
   const div = document.createElement("div");
   div.className = "evento";
+
   div.innerHTML = `
     <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong><br>
     Sessão Deliberativa
     <div id="det-${ev.id}" class="detalhe oculto"></div>
   `;
+
   div.onclick = () => abrirSessao(ev);
   lista.appendChild(div);
 }
@@ -104,12 +129,7 @@ function criarSessao(ev) {
 ===================== */
 function abrirSessao(ev) {
   const box = document.getElementById(`det-${ev.id}`);
-
-  if (!box.classList.contains("oculto")) {
-    box.classList.add("oculto");
-    return;
-  }
-  box.classList.remove("oculto");
+  box.classList.toggle("oculto");
 
   if (box.dataset.carregado) return;
 
@@ -117,95 +137,69 @@ function abrirSessao(ev) {
 
   fetch(`${BASE}/eventos/${ev.id}/votacoes`)
     .then(r => r.json())
-    .then(res => montarVotacoes(ev, res.dados || [], box))
+    .then(res => carregarDetalhes(ev, res.dados || [], box))
     .catch(() => box.innerText = "Erro ao carregar votações.");
 }
 
 /* =====================
-   UTIL – LIMPAR TEXTO
+   DETALHES + FILTRO
 ===================== */
-function limparTextoResultado(txt) {
-  return txt
-    .replace(/Sim\s*:\s*\d+/gi, "")
-    .replace(/Não\s*:\s*\d+/gi, "")
-    .replace(/Abstenção\s*:\s*\d+/gi, "")
-    .replace(/Total\s*:\s*\d+/gi, "")
-    .replace(/[;,.]\s*(?=[;,]|$)/g, "")
-    .trim();
-}
-
-/* =====================
-   MONTAR VOTAÇÕES
-===================== */
-function montarVotacoes(ev, listaVotacoes, box) {
-
+async function carregarDetalhes(ev, votacoes, box) {
   let html = `
     <strong>Sessão para votação de propostas legislativas</strong><br><br>
     <strong>Local:</strong> Plenário da Câmara dos Deputados<br>
-    <strong>Início:</strong> ${new Date(ev.dataHoraInicio).toLocaleString()}<br><br>
+    <strong>Início:</strong> ${new Date(ev.dataHoraInicio).toLocaleString()}<br>
   `;
 
-  if (!listaVotacoes.length) {
-    box.innerHTML = html + "Nenhuma votação registrada.";
+  if (ev.urlRegistro || ev.urlTransmissao) {
+    const link = ev.urlRegistro || ev.urlTransmissao;
+    html += `<div class="video">▶ <a href="${link}" target="_blank">Assistir vídeo da sessão</a></div>`;
+  }
+
+  if (!votacoes.length) {
+    box.innerHTML = html + "<br>Nenhuma votação registrada.";
     box.dataset.carregado = "1";
     return;
   }
 
-  html += "<strong>Votações realizadas:</strong><br><br>";
-  box.innerHTML = html;
+  box.innerHTML = html + "<br><strong>Votações realizadas:</strong><br><br>";
 
-  Promise.all(
-    listaVotacoes.map(v =>
-      fetch(`${BASE}/votacoes/${v.id}`)
-        .then(r => r.json())
-        .then(j => j.dados)
-        .catch(() => null)
-    )
-  ).then(votacoes => {
+  for (const v of votacoes) {
+    const resp = await fetch(`${BASE}/votacoes/${v.id}`);
+    const d = await resp.json();
+    const voto = d.dados;
 
-    votacoes.forEach(v => {
-      if (!v || !v.proposicoesAfetadas?.length) return;
+    if (!voto?.proposicoesAfetadas) continue;
 
-      const bruto = (v.resultado || v.descricao || "");
+    voto.proposicoesAfetadas.forEach(p => {
+      const tipoSelecionado = seletorTipo.value;
+      if (tipoSelecionado && p.siglaTipo !== tipoSelecionado) return;
 
-      const extrair = lbl => {
-        const m = bruto.match(new RegExp(lbl+"\\s*:?\\s*(\\d+)", "i"));
-        return m ? parseInt(m[1]) : null;
-      };
-
-      const sim = extrair("Sim");
-      const nao = extrair("Não");
-      const abst = extrair("Abstenção");
-      const total = extrair("Total");
-
-      const textoLimpo = limparTextoResultado(bruto);
-
-      v.proposicoesAfetadas.forEach(p => {
-        box.innerHTML += `
+      box.innerHTML += `
+        <div class="proposicao">
           ➡️ <strong>${p.siglaTipo} ${p.numero}/${p.ano}</strong><br>
           ${p.ementa || "Sem ementa"}<br>
-
-          ${sim !== null ? `
-          <div class="placar">
-            Sim: ${sim}; Não: ${nao??0}; Abstenção: ${abst??0};
-            Total: ${total ?? (sim+(nao??0)+(abst??0))}
-          </div>` : ""}
-
-          <em>Resultado:</em> ${textoLimpo || "Não informado"}<br>
-          <em>Tipo de votação:</em> Nominal
-          <br><br>
-        `;
-      });
+          <strong class="votos">
+            ${voto.resumoVotacao || ""}
+          </strong>
+        </div>
+      `;
     });
+  }
 
-    box.dataset.carregado = "1";
-  });
+  box.dataset.carregado = "1";
 }
 
 /* =====================
    EVENTOS
 ===================== */
-seletor.addEventListener("change", carregarSessoes);
+seletorPeriodo.addEventListener("change", carregarSessoes);
+seletorTipo.addEventListener("change", () => {
+  document.querySelectorAll(".detalhe").forEach(d => d.remove());
+  document.querySelectorAll(".evento").forEach(e => e.click());
+});
+
+/* Inicial */
 carregarSessoes();
 </script>
 
