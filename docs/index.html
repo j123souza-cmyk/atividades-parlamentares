@@ -13,10 +13,7 @@
     .ativa { display: block; }
 
     .filtros { margin: 12px 0; }
-    .filtros input, .filtros select {
-      padding: 6px;
-      margin-right: 6px;
-    }
+    .filtros input, .filtros select { padding: 6px; margin-right: 6px; }
 
     .deputado {
       display: flex;
@@ -28,6 +25,11 @@
     .deputado img { width: 60px; border-radius: 6px; }
 
     #detalhe img { width: 120px; border-radius: 8px; }
+
+    .presenca {
+      margin: 10px 0;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
@@ -60,8 +62,11 @@
 <section id="detalhe" class="aba">
   <h2 id="nomeDeputado"></h2>
   <img id="fotoDeputado">
+
+  <p class="presenca" id="presencaTexto"></p>
+
   <p><strong>Atividades no último ano</strong></p>
-  <canvas id="grafico" width="420" height="300"></canvas>
+  <canvas id="grafico" width="440" height="300"></canvas>
 </section>
 
 <script>
@@ -75,28 +80,23 @@ function mostrar(id) {
   document.getElementById(id).classList.add('ativa');
 }
 
-/* LISTA DE DEPUTADOS */
+/* LISTA */
 fetch(`${BASE}/deputados?ordem=ASC&ordenarPor=nome`)
   .then(r => r.json())
   .then(json => {
-    document.getElementById('status').remove();
+    status.remove();
     deputados = json.dados;
     deputadosFiltrados = deputados;
-
     preencherFiltros(deputados);
     renderizarLista(deputados);
   });
 
 function preencherFiltros(lista) {
-  const partidos = [...new Set(lista.map(d => d.siglaPartido))].sort();
-  const ufs = [...new Set(lista.map(d => d.siglaUf))].sort();
+  [...new Set(lista.map(d => d.siglaPartido))].sort()
+    .forEach(p => filtroPartido.innerHTML += `<option value="${p}">${p}</option>`);
 
-  partidos.forEach(p =>
-    filtroPartido.innerHTML += `<option value="${p}">${p}</option>`
-  );
-  ufs.forEach(u =>
-    filtroUf.innerHTML += `<option value="${u}">${u}</option>`
-  );
+  [...new Set(lista.map(d => d.siglaUf))].sort()
+    .forEach(u => filtroUf.innerHTML += `<option value="${u}">${u}</option>`);
 }
 
 function aplicarFiltros() {
@@ -114,12 +114,10 @@ function aplicarFiltros() {
 }
 
 function renderizarLista(lista) {
-  const container = document.getElementById('listaDeputados');
-  container.innerHTML = "";
-
+  listaDeputados.innerHTML = "";
   lista.forEach(dep => {
-    const div = document.createElement('div');
-    div.className = 'deputado';
+    const div = document.createElement("div");
+    div.className = "deputado";
     div.innerHTML = `
       <img src="${dep.urlFoto}">
       <div>
@@ -128,13 +126,13 @@ function renderizarLista(lista) {
       </div>
     `;
     div.onclick = () => abrirDetalhe(dep);
-    container.appendChild(div);
+    listaDeputados.appendChild(div);
   });
 }
 
-/* DETALHE DO DEPUTADO */
+/* DETALHE */
 function abrirDetalhe(dep) {
-  mostrar('detalhe');
+  mostrar("detalhe");
   nomeDeputado.innerText = dep.nome;
   fotoDeputado.src = dep.urlFoto;
 
@@ -149,7 +147,6 @@ function abrirDetalhe(dep) {
     .then(r => r.json())
     .then(json => {
       const eventos = json.dados || [];
-
       const totalEventos = eventos.length;
 
       const plenarios = eventos.filter(e =>
@@ -157,23 +154,28 @@ function abrirDetalhe(dep) {
         (e.descricao || "").toLowerCase().includes("plenário")
       ).length;
 
-      desenharGrafico(totalEventos, plenarios);
+      const presenca = totalEventos > 0
+        ? Math.round((plenarios / totalEventos) * 100)
+        : 0;
+
+      presencaTexto.innerText = `Presença no plenário: ${presenca}%`;
+
+      desenharGrafico(totalEventos, plenarios, presenca);
     });
 }
 
 /* GRÁFICO */
-function desenharGrafico(eventos, plenarios) {
-  const ctx = document.getElementById('grafico');
+function desenharGrafico(eventos, plenarios, presenca) {
   if (chart) chart.destroy();
 
-  chart = new Chart(ctx, {
-    type: 'bar',
+  chart = new Chart(document.getElementById("grafico"), {
+    type: "bar",
     data: {
-      labels: ['Eventos', 'Atividades no Plenário'],
+      labels: ["Eventos", "Plenário", "Presença (%)"],
       datasets: [{
-        label: 'Quantidade',
-        data: [eventos, plenarios],
-        backgroundColor: ['#4CAF50', '#2196F3'],
+        label: "Indicadores",
+        data: [eventos, plenarios, presenca],
+        backgroundColor: ["#4CAF50", "#2196F3", "#FF9800"],
         minBarLength: 6
       }]
     },
