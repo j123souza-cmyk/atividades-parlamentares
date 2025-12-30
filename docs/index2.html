@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-<title>Últimas Votações – Câmara dos Deputados</title>
+<title>Sessões do Plenário – Câmara dos Deputados</title>
 
 <style>
 body { font-family: Arial, sans-serif; margin: 16px; }
@@ -13,20 +13,21 @@ body { font-family: Arial, sans-serif; margin: 16px; }
 .evento strong { display:block; }
 .info { font-size: 13px; color: #555; }
 .tag {
-  display: inline-block;
-  font-size: 12px;
-  padding: 2px 6px;
-  background: #e3f2fd;
-  border-radius: 4px;
-  margin-top: 4px;
+  display:inline-block;
+  font-size:12px;
+  background:#e3f2fd;
+  padding:2px 6px;
+  border-radius:4px;
+  margin-top:4px;
 }
 </style>
 </head>
 <body>
 
-<h1>Últimas Votações em Plenário</h1>
+<h1>Sessões Recentes do Plenário</h1>
+<p><em>Nessas sessões ocorrem as votações oficiais.</em></p>
 
-<p id="status">Carregando sessões deliberativas…</p>
+<p id="status">Carregando sessões…</p>
 <div id="lista"></div>
 
 <script>
@@ -34,56 +35,34 @@ const BASE = "https://dadosabertos.camara.leg.br/api/v2";
 const status = document.getElementById("status");
 const lista = document.getElementById("lista");
 
-fetch(`${BASE}/eventos?ordem=DESC&ordenarPor=dataHoraInicio&itens=200`)
+fetch(`${BASE}/eventos?ordem=DESC&ordenarPor=dataHoraInicio&itens=50`)
   .then(r => r.json())
   .then(json => {
     status.innerText = "";
 
-    const eventos = (json.dados || []).filter(ev => {
-      const texto =
-        ((ev.descricao || "") + " " + (ev.titulo || "")).toLowerCase();
-
-      return (
-        texto.includes("sessão") &&
-        (texto.includes("deliberativa") || texto.includes("ordem do dia"))
-      );
-    });
+    const eventos = json.dados || [];
 
     if (eventos.length === 0) {
-      status.innerText = "Nenhuma votação encontrada.";
+      status.innerText = "Nenhuma sessão encontrada.";
       return;
     }
 
-    eventos.slice(0, 20).forEach(ev => {
+    eventos.forEach(ev => {
       const div = document.createElement("div");
       div.className = "evento";
       div.innerHTML = `
         <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong>
-        ${extrairTema(ev.descricao || ev.titulo)}<br>
-        <span class="info">${extrairResultado(ev.descricao)}</span><br>
-        <span class="tag">Sessão deliberativa</span>
+        ${ev.titulo || "Sessão do Plenário"}<br>
+        <span class="info">${ev.descricao || "Sessão com deliberações parlamentares."}</span><br>
+        <span class="tag">${ev.situacao || "Sessão oficial"}</span>
       `;
       lista.appendChild(div);
     });
   })
   .catch(err => {
     console.error(err);
-    status.innerText = "Erro ao carregar eventos.";
+    status.innerText = "Erro ao carregar sessões.";
   });
-
-function extrairTema(txt) {
-  if (!txt) return "Sessão deliberativa";
-  return txt.split(".")[0];
-}
-
-function extrairResultado(txt) {
-  if (!txt) return "Resultado: Registro de sessão";
-  const t = txt.toLowerCase();
-  if (t.includes("aprov")) return "Resultado: Aprovado";
-  if (t.includes("rejeit")) return "Resultado: Rejeitado";
-  if (t.includes("retir")) return "Resultado: Retirado";
-  return "Resultado: Sessão deliberativa";
-}
 </script>
 
 </body>
