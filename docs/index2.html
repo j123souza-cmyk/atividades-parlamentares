@@ -1,139 +1,154 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <title>Sessões do Plenário – Câmara dos Deputados</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-      background: #f7f7f7;
-    }
+<meta charset="UTF-8">
+<title>Sessões do Plenário – Câmara</title>
 
-    h1 {
-      margin-bottom: 10px;
-    }
+<style>
+body {
+  font-family: Arial, sans-serif;
+  margin: 20px;
+  background: #f7f7f7;
+}
+h1 { margin-bottom: 10px; }
 
-    .filtros {
-      margin-bottom: 15px;
-    }
+.filtros {
+  margin-bottom: 15px;
+}
 
-    select, button {
-      padding: 6px 10px;
-      margin-right: 10px;
-      font-size: 14px;
-    }
+select, button {
+  padding: 6px 10px;
+  margin-right: 10px;
+  font-size: 14px;
+}
 
-    .contador {
-      margin: 10px 0;
-      font-weight: bold;
-    }
+.contador {
+  margin: 10px 0;
+  font-weight: bold;
+}
 
-    .sessao {
-      background: #fff;
-      padding: 12px;
-      margin-bottom: 10px;
-      border-radius: 6px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-    }
+.sessao {
+  background: #fff;
+  padding: 12px;
+  margin-bottom: 10px;
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
 
-    .carregando {
-      font-style: italic;
-    }
-  </style>
+.carregando {
+  font-style: italic;
+}
+</style>
 </head>
+
 <body>
 
 <h1>Sessões Deliberativas do Plenário</h1>
 
 <div class="filtros">
-  <label for="periodo">Período:</label>
+  <label>Período:</label>
   <select id="periodo">
     <option value="3" selected>Últimos 3 meses</option>
     <option value="6">Últimos 6 meses</option>
     <option value="12">Últimos 12 meses</option>
   </select>
-
   <button id="filtrar">Filtrar</button>
 </div>
 
 <div id="contador" class="contador"></div>
-
 <div id="resultado">
   <div class="carregando">Carregando sessões...</div>
 </div>
 
 <script>
-  const resultadoEl = document.getElementById("resultado");
-  const contadorEl = document.getElementById("contador");
-  const periodoEl = document.getElementById("periodo");
-  const botaoFiltrar = document.getElementById("filtrar");
+const resultadoEl = document.getElementById("resultado");
+const contadorEl = document.getElementById("contador");
+const periodoEl = document.getElementById("periodo");
+const botaoFiltrar = document.getElementById("filtrar");
 
-  botaoFiltrar.addEventListener("click", carregarSessoes);
+botaoFiltrar.addEventListener("click", carregarSessoes);
+carregarSessoes(); // padrão: 3 meses
 
-  // Carrega automaticamente ao abrir (3 meses)
-  carregarSessoes();
+async function carregarSessoes() {
+  resultadoEl.innerHTML = '<div class="carregando">Carregando sessões...</div>';
+  contadorEl.textContent = "";
 
-  async function carregarSessoes() {
-    resultadoEl.innerHTML = '<div class="carregando">Carregando sessões...</div>';
-    contadorEl.textContent = "";
+  const meses = Number(periodoEl.value);
 
-    const meses = Number(periodoEl.value);
-    const dataFim = new Date();
-    const dataInicio = new Date();
-    dataInicio.setMonth(dataFim.getMonth() - meses);
+  const dataFim = new Date();
+  const dataInicio = new Date();
+  dataInicio.setMonth(dataFim.getMonth() - meses);
 
-    const dataInicioISO = dataInicio.toISOString().split("T")[0];
-    const dataFimISO = dataFim.toISOString().split("T")[0];
+  const limiteData = dataInicio.getTime();
 
-    try {
+  let pagina = 1;
+  let todasSessoes = [];
+  let continuar = true;
+
+  try {
+    while (continuar) {
       const url = `
         https://dadosabertos.camara.leg.br/api/v2/eventos
         ?codTipoEvento=140
-        &dataInicio=${dataInicioISO}
-        &dataFim=${dataFimISO}
         &ordenarPor=dataHoraInicio
         &ordem=DESC
         &itens=100
+        &pagina=${pagina}
       `.replace(/\s+/g, "");
 
       const response = await fetch(url);
-      const data = await response.json();
+      const json = await response.json();
+      const dados = json?.dados || [];
 
-      const sessoes = data?.dados || [];
+      if (dados.length === 0) break;
 
-      if (sessoes.length === 0) {
-        resultadoEl.innerHTML = "<p>Nenhuma sessão encontrada.</p>";
-        contadorEl.textContent = "Sessões encontradas: 0";
-        return;
+      for (const sessao of dados) {
+        if (!sessao.dataHoraInicio) continue;
+
+        const dataSessao = new Date(sessao.dataHoraInicio).getTime();
+
+        if (dataSessao < limiteData) {
+          continuar = false;
+          break;
+        }
+
+        todasSessoes.push(sessao);
       }
 
-      contadorEl.textContent = `Sessões encontradas no período: ${sessoes.length}`;
-
-      resultadoEl.innerHTML = "";
-
-      sessoes.forEach(sessao => {
-        const div = document.createElement("div");
-        div.className = "sessao";
-
-        const inicio = sessao.dataHoraInicio
-          ? new Date(sessao.dataHoraInicio).toLocaleString("pt-BR")
-          : "Não informado";
-
-        div.innerHTML = `
-          <strong>${sessao.descricaoTipo || "Sessão Deliberativa"}</strong><br>
-          <strong>Local:</strong> ${sessao.localCamara?.nome || "Plenário"}<br>
-          <strong>Início:</strong> ${inicio}
-        `;
-
-        resultadoEl.appendChild(div);
-      });
-
-    } catch (erro) {
-      console.error(erro);
-      resultadoEl.innerHTML = "<p>Erro ao carregar sessões.</p>";
+      pagina++;
     }
+
+    if (todasSessoes.length === 0) {
+      resultadoEl.innerHTML = "<p>Nenhuma sessão encontrada.</p>";
+      contadorEl.textContent = "Sessões encontradas: 0";
+      return;
+    }
+
+    contadorEl.textContent =
+      `Sessões encontradas no período: ${todasSessoes.length}`;
+
+    resultadoEl.innerHTML = "";
+
+    todasSessoes.forEach(sessao => {
+      const inicio = sessao.dataHoraInicio
+        ? new Date(sessao.dataHoraInicio).toLocaleString("pt-BR")
+        : "Não informado";
+
+      const div = document.createElement("div");
+      div.className = "sessao";
+      div.innerHTML = `
+        <strong>${sessao.descricaoTipo || "Sessão Deliberativa"}</strong><br>
+        <strong>Local:</strong> ${sessao.localCamara?.nome || "Plenário"}<br>
+        <strong>Início:</strong> ${inicio}
+      `;
+      resultadoEl.appendChild(div);
+    });
+
+  } catch (erro) {
+    console.error(erro);
+    resultadoEl.innerHTML = "<p>Erro ao carregar sessões.</p>";
   }
+}
 </script>
 
 </body>
