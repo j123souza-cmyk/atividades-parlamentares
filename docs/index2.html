@@ -92,6 +92,7 @@ async function carregarSessoes() {
         continuar = false;
         break;
       }
+
       const t = ((ev.titulo || "") + (ev.descricao || "")).toLowerCase();
       if (t.includes("sessão") && t.includes("deliberativa")) {
         sessoes.push(ev);
@@ -130,6 +131,7 @@ function criarSessao(ev) {
 function abrirSessao(ev) {
   const box = document.getElementById(`det-${ev.id}`);
   box.classList.toggle("oculto");
+
   if (box.dataset.carregado) return;
 
   box.innerHTML = "Carregando votações…";
@@ -141,9 +143,11 @@ function abrirSessao(ev) {
 }
 
 /* =====================
-   DETALHES + RESULTADO
+   DETALHES COM FILTRO FUNCIONAL
 ===================== */
 async function carregarDetalhes(ev, votacoes, box) {
+  const filtro = seletorTipo.value;
+
   let html = `
     <strong>Sessão para votação de propostas legislativas</strong><br><br>
     <strong>Local:</strong> Plenário da Câmara dos Deputados<br>
@@ -163,23 +167,21 @@ async function carregarDetalhes(ev, votacoes, box) {
 
   box.innerHTML = html + "<br><strong>Votações realizadas:</strong><br><br>";
 
+  let encontrou = false;
+
   for (const v of votacoes) {
     const resp = await fetch(`${BASE}/votacoes/${v.id}`);
     const d = await resp.json();
     const voto = d.dados;
     if (!voto?.proposicoesAfetadas) continue;
 
-    const resultado =
-      voto.resultado ||
-      voto.descricao ||
-      "Resultado não informado";
-
+    const resultado = voto.resultado || voto.descricao || "Resultado não informado";
     const resumoVotos = voto.resumoVotacao || "";
 
     voto.proposicoesAfetadas.forEach(p => {
-      const filtro = seletorTipo.value;
       if (filtro && p.siglaTipo !== filtro) return;
 
+      encontrou = true;
       box.innerHTML += `
         <div class="proposicao">
           ➡️ <strong>${p.siglaTipo} ${p.numero}/${p.ano}</strong><br>
@@ -191,6 +193,10 @@ async function carregarDetalhes(ev, votacoes, box) {
     });
   }
 
+  if (!encontrou) {
+    box.innerHTML += "Nenhuma proposição deste tipo nesta sessão.";
+  }
+
   box.dataset.carregado = "1";
 }
 
@@ -199,8 +205,11 @@ async function carregarDetalhes(ev, votacoes, box) {
 ===================== */
 seletorPeriodo.addEventListener("change", carregarSessoes);
 seletorTipo.addEventListener("change", () => {
-  document.querySelectorAll(".detalhe").forEach(d => d.remove());
-  document.querySelectorAll(".evento").forEach(e => e.click());
+  document.querySelectorAll(".detalhe").forEach(d => {
+    d.classList.add("oculto");
+    d.removeAttribute("data-carregado");
+    d.innerHTML = "";
+  });
 });
 
 /* Inicial */
