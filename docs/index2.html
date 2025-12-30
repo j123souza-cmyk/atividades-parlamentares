@@ -1,184 +1,139 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<title>Sessões do Plenário</title>
-
-<style>
-body { font-family: Arial, sans-serif; margin: 20px; }
-#controles { margin-bottom: 15px; }
-.evento { padding: 10px; border-bottom: 1px solid #ccc; cursor: pointer; }
-.evento:hover { background: #f2f2f2; }
-.detalhe { margin-top: 8px; padding: 10px; background: #fafafa; border-left: 3px solid #005ea8; }
-.oculto { display: none; }
-#status { font-weight: bold; margin-bottom: 10px; }
-</style>
-</head>
-
-<body>
-
-<h2>Últimas Sessões do Plenário</h2>
-
-<div id="controles">
-  Período:
-  <select id="periodo">
-    <option value="3">Últimos 3 meses</option>
-    <option value="6">Últimos 6 meses</option>
-    <option value="12" selected>Últimos 12 meses</option>
-  </select>
-</div>
-
-<div id="status">Carregando sessões…</div>
-<div id="lista"></div>
-
-<script>
-const BASE = "https://dadosabertos.camara.leg.br/api/v2";
-const status = document.getElementById("status");
-const lista = document.getElementById("lista");
-const seletor = document.getElementById("periodo");
-
-/* =====================
-   BUSCA COM PARADA INTELIGENTE
-===================== */
-async function carregarSessoes() {
-  lista.innerHTML = "";
-  status.innerText = "Carregando sessões…";
-
-  const meses = parseInt(seletor.value);
-  const fim = new Date();
-  const inicio = new Date();
-  inicio.setMonth(fim.getMonth() - meses);
-
-  const dataInicio = inicio.toISOString().slice(0, 10);
-  const dataFim = fim.toISOString().slice(0, 10);
-
-  let pagina = 1;
-  let sessoesFiltradas = [];
-  let continuar = true;
-
-  while (continuar) {
-    const resp = await fetch(
-      `${BASE}/eventos?dataInicio=${dataInicio}&dataFim=${dataFim}` +
-      `&ordenarPor=dataHoraInicio&ordem=DESC&pagina=${pagina}&itens=100`
-    );
-    const json = await resp.json();
-    const dados = json.dados || [];
-
-    if (!dados.length) break;
-
-    for (const ev of dados) {
-      const dataEvento = new Date(ev.dataHoraInicio);
-      if (dataEvento < inicio) {
-        continuar = false;
-        break;
-      }
-
-      const t = ((ev.titulo || "") + (ev.descricao || "")).toLowerCase();
-      if (t.includes("sessão") && t.includes("deliberativa")) {
-        sessoesFiltradas.push(ev);
-      }
+  <meta charset="UTF-8">
+  <title>Sessões do Plenário – Câmara dos Deputados</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f7f7f7;
     }
 
-    pagina++;
-  }
+    h1 {
+      margin-bottom: 10px;
+    }
 
-  status.innerText = sessoesFiltradas.length
-    ? `Sessões encontradas: ${sessoesFiltradas.length}`
-    : "Nenhuma sessão encontrada.";
+    .filtros {
+      margin-bottom: 15px;
+    }
 
-  sessoesFiltradas.forEach(criarSessao);
-}
+    select, button {
+      padding: 6px 10px;
+      margin-right: 10px;
+      font-size: 14px;
+    }
 
-/* =====================
-   LISTAGEM
-===================== */
-function criarSessao(ev) {
-  const div = document.createElement("div");
-  div.className = "evento";
+    .contador {
+      margin: 10px 0;
+      font-weight: bold;
+    }
 
-  div.innerHTML = `
-    <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong><br>
-    Sessão Deliberativa
-    <div id="det-${ev.id}" class="detalhe oculto"></div>
-  `;
+    .sessao {
+      background: #fff;
+      padding: 12px;
+      margin-bottom: 10px;
+      border-radius: 6px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    }
 
-  div.onclick = () => abrirSessao(ev);
-  lista.appendChild(div);
-}
+    .carregando {
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
 
-/* =====================
-   DETALHES
-===================== */
-function abrirSessao(ev) {
-  const box = document.getElementById(`det-${ev.id}`);
+<h1>Sessões Deliberativas do Plenário</h1>
 
-  if (!box.classList.contains("oculto")) {
-    box.classList.add("oculto");
-    return;
-  }
+<div class="filtros">
+  <label for="periodo">Período:</label>
+  <select id="periodo">
+    <option value="3" selected>Últimos 3 meses</option>
+    <option value="6">Últimos 6 meses</option>
+    <option value="12">Últimos 12 meses</option>
+  </select>
 
-  box.classList.remove("oculto");
-  if (box.dataset.carregado) return;
+  <button id="filtrar">Filtrar</button>
+</div>
 
-  box.innerHTML = "Carregando votações…";
+<div id="contador" class="contador"></div>
 
-  fetch(`${BASE}/eventos/${ev.id}/votacoes`)
-    .then(r => r.json())
-    .then(res => carregarDetalhesVotacoes(ev, res.dados || [], box))
-    .catch(() => box.innerText = "Erro ao carregar votações.");
-}
+<div id="resultado">
+  <div class="carregando">Carregando sessões...</div>
+</div>
 
-/* =====================
-   VOTAÇÕES DETALHADAS
-===================== */
-function carregarDetalhesVotacoes(ev, votacoes, box) {
+<script>
+  const resultadoEl = document.getElementById("resultado");
+  const contadorEl = document.getElementById("contador");
+  const periodoEl = document.getElementById("periodo");
+  const botaoFiltrar = document.getElementById("filtrar");
 
-  let html = `
-    <strong>Sessão para votação de propostas legislativas</strong><br><br>
-    <strong>Local:</strong> Plenário da Câmara dos Deputados<br>
-    <strong>Início:</strong> ${new Date(ev.dataHoraInicio).toLocaleString()}<br><br>
-  `;
+  botaoFiltrar.addEventListener("click", carregarSessoes);
 
-  if (!votacoes.length) {
-    box.innerHTML = html + "Nenhuma votação registrada.";
-    return;
-  }
+  // Carrega automaticamente ao abrir (3 meses)
+  carregarSessoes();
 
-  html += "<strong>Votações realizadas:</strong><br><br>";
-  box.innerHTML = html;
+  async function carregarSessoes() {
+    resultadoEl.innerHTML = '<div class="carregando">Carregando sessões...</div>';
+    contadorEl.textContent = "";
 
-  Promise.all(
-    votacoes.map(v =>
-      fetch(`${BASE}/votacoes/${v.id}`)
-        .then(r => r.json())
-        .then(d => d.dados)
-        .catch(() => null)
-    )
-  )
-  .then(listaDetalhes => {
-    listaDetalhes.forEach(v => {
-      if (!v || !v.proposicoesAfetadas?.length) return;
+    const meses = Number(periodoEl.value);
+    const dataFim = new Date();
+    const dataInicio = new Date();
+    dataInicio.setMonth(dataFim.getMonth() - meses);
 
-      v.proposicoesAfetadas.forEach(p => {
-        box.innerHTML += `
-          ➡️ <strong>${p.siglaTipo} ${p.numero}/${p.ano}</strong><br>
-          ${p.ementa || "Sem ementa"}<br>
-          <em>Resultado:</em> ${v.resultado || v.descricao || "Não informado"}<br><br>
+    const dataInicioISO = dataInicio.toISOString().split("T")[0];
+    const dataFimISO = dataFim.toISOString().split("T")[0];
+
+    try {
+      const url = `
+        https://dadosabertos.camara.leg.br/api/v2/eventos
+        ?codTipoEvento=140
+        &dataInicio=${dataInicioISO}
+        &dataFim=${dataFimISO}
+        &ordenarPor=dataHoraInicio
+        &ordem=DESC
+        &itens=100
+      `.replace(/\s+/g, "");
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      const sessoes = data?.dados || [];
+
+      if (sessoes.length === 0) {
+        resultadoEl.innerHTML = "<p>Nenhuma sessão encontrada.</p>";
+        contadorEl.textContent = "Sessões encontradas: 0";
+        return;
+      }
+
+      contadorEl.textContent = `Sessões encontradas no período: ${sessoes.length}`;
+
+      resultadoEl.innerHTML = "";
+
+      sessoes.forEach(sessao => {
+        const div = document.createElement("div");
+        div.className = "sessao";
+
+        const inicio = sessao.dataHoraInicio
+          ? new Date(sessao.dataHoraInicio).toLocaleString("pt-BR")
+          : "Não informado";
+
+        div.innerHTML = `
+          <strong>${sessao.descricaoTipo || "Sessão Deliberativa"}</strong><br>
+          <strong>Local:</strong> ${sessao.localCamara?.nome || "Plenário"}<br>
+          <strong>Início:</strong> ${inicio}
         `;
+
+        resultadoEl.appendChild(div);
       });
-    });
 
-    box.dataset.carregado = "1";
-  });
-}
-
-/* =====================
-   EVENTO DO SELETOR
-===================== */
-seletor.addEventListener("change", carregarSessoes);
-
-/* Inicial */
-carregarSessoes();
+    } catch (erro) {
+      console.error(erro);
+      resultadoEl.innerHTML = "<p>Erro ao carregar sessões.</p>";
+    }
+  }
 </script>
 
 </body>
