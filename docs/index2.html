@@ -12,22 +12,18 @@ body { font-family: Arial, sans-serif; margin: 20px; }
 .detalhe { margin-top: 8px; padding: 10px; background: #fafafa; border-left: 3px solid #005ea8; }
 .oculto { display: none; }
 #status { font-weight: bold; margin-bottom: 10px; }
-.votacao { margin-bottom: 16px; }
-.toggle { color: #005ea8; cursor: pointer; font-size: 13px; margin-top: 4px; }
-.votos { margin-left: 15px; font-size: 13px; }
 </style>
 </head>
 
 <body>
 
-<h2>Últimas Sessões do Plenário</h2>
+<h2>Últimas Sessões Deliberativas do Plenário</h2>
 
 <div id="controles">
   Período:
   <select id="periodo">
-    <option value="3">Últimos 3 meses</option>
+    <option value="3" selected>Últimos 3 meses</option>
     <option value="6">Últimos 6 meses</option>
-    <option value="12" selected>Últimos 12 meses</option>
   </select>
 </div>
 
@@ -41,7 +37,7 @@ const lista = document.getElementById("lista");
 const seletor = document.getElementById("periodo");
 
 /* =====================
-   BUSCA DE SESSÕES
+   CARREGAR SESSÕES
 ===================== */
 async function carregarSessoes() {
   lista.innerHTML = "";
@@ -64,23 +60,31 @@ async function carregarSessoes() {
       `${BASE}/eventos?dataInicio=${dataInicio}&dataFim=${dataFim}` +
       `&ordenarPor=dataHoraInicio&ordem=DESC&pagina=${pagina}&itens=100`
     );
+
     const json = await resp.json();
     const dados = json.dados || [];
     if (!dados.length) break;
 
     for (const ev of dados) {
-      const dataEvento = new Date(ev.dataHoraInicio);
-      if (dataEvento < inicio) { continuar = false; break; }
+      const dataEv = new Date(ev.dataHoraInicio);
+      if (dataEv < inicio) {
+        continuar = false;
+        break;
+      }
 
       const texto = ((ev.titulo || "") + (ev.descricao || "")).toLowerCase();
       if (texto.includes("sessão") && texto.includes("deliberativa")) {
         sessoes.push(ev);
       }
     }
+
     pagina++;
   }
 
-  status.innerText = `Sessões encontradas: ${sessoes.length}`;
+  status.innerText = sessoes.length
+    ? `Sessões encontradas: ${sessoes.length}`
+    : "Nenhuma sessão encontrada.";
+
   sessoes.forEach(criarSessao);
 }
 
@@ -113,20 +117,21 @@ function abrirSessao(ev) {
   }
 
   box.classList.remove("oculto");
+
   if (box.dataset.carregado) return;
 
   box.innerHTML = "Carregando votações…";
 
   fetch(`${BASE}/eventos/${ev.id}/votacoes`)
     .then(r => r.json())
-    .then(res => carregarVotacoes(ev, res.dados || [], box))
+    .then(res => montarVotacoes(ev, res.dados || [], box))
     .catch(() => box.innerText = "Erro ao carregar votações.");
 }
 
 /* =====================
-   VOTAÇÕES
+   MONTAR VOTAÇÕES
 ===================== */
-function carregarVotacoes(ev, votacoes, box) {
+function montarVotacoes(ev, votacoes, box) {
 
   let html = `
     <strong>Sessão para votação de propostas legislativas</strong><br><br>
@@ -136,6 +141,7 @@ function carregarVotacoes(ev, votacoes, box) {
 
   if (!votacoes.length) {
     box.innerHTML = html + "Nenhuma votação registrada.";
+    box.dataset.carregado = "1";
     return;
   }
 
@@ -146,35 +152,53 @@ function carregarVotacoes(ev, votacoes, box) {
     votacoes.map(v =>
       fetch(`${BASE}/votacoes/${v.id}`)
         .then(r => r.json())
-        .then(d => d.dados)
+        .then(d => ({ meta: v, detalhe: d.dados }))
         .catch(() => null)
     )
-  ).then(listaDetalhes => {
-    listaDetalhes.forEach(v => {
-      if (!v) return;
+  ).then(lista => {
+    lista.forEach(item => {
+      if (!item || !item.detalhe) return;
 
-      const prop = v.proposicoesAfetadas?.[0];
-      const tema = prop?.ementa || v.descricao || "Tema não informado";
+      const v = item.detalhe;
+      if (!v.proposicoesAfetadas?.length) return;
 
-      const resultado =
-        v.aprovacao === 1 ? "Aprovada" :
-        v.aprovacao === 0 ? "Rejeitada" :
-        v.descricao || "Resultado não informado";
+      v.proposicoesAfetadas.forEach(p => {
+        const tipoId = `tipo-${v.id}-${p.id}`;
 
-      box.innerHTML += `
-        <div class="votacao">
-          ➡️ <strong>${prop ? `${prop.siglaTipo} ${prop.numero}/${prop.ano}` : "Votação"}</strong><br>
-          ${tema}<br>
-          <strong>Resultado:</strong> ${resultado}<br>
-          <em>Tipo de votação:</em> ${v.tipoVotacao || "Não nominal"}
-        </div>
-      `;
+        box.innerHTML += `
+          ➡️ <strong>${p.siglaTipo} ${p.numero}/${p.ano}</strong><br>
+          ${p.ementa || "Sem ementa"}<br>
+          <em>Resultado:</em> ${v.resultado || v.descricao || "Não informado"}<br>
+          <span id="${tipoId}"><em>Tipo de votação:</em> Verificando…</span><br><br>
+        `;
+
+        /* Detectar se é nominal */
+        fetch(`${BASE}/votacoes/${v.id}/votos`)
+          .then(r => r.json())
+          .then(res => {
+            const el = document.getElementById(tipoId);
+            if (!el) return;
+
+            if (res.dados && res.dados.length > 0) {
+              el.innerHTML = "<em>Tipo de votação:</em> Nominal";
+            } else {
+              el.innerHTML = "<em>Tipo de votação:</em> Simbólica (não nominal)";
+            }
+          })
+          .catch(() => {
+            const el = document.getElementById(tipoId);
+            if (el) el.innerHTML = "<em>Tipo de votação:</em> Simbólica (não nominal)";
+          });
+      });
     });
 
     box.dataset.carregado = "1";
   });
 }
 
+/* =====================
+   EVENTOS
+===================== */
 seletor.addEventListener("change", carregarSessoes);
 carregarSessoes();
 </script>
