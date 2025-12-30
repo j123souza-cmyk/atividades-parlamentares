@@ -13,7 +13,8 @@ select { padding: 5px; }
 .detalhe { margin-top: 8px; padding: 10px; background: #fafafa; border-left: 3px solid #005ea8; }
 .oculto { display: none; }
 #status { font-weight: bold; margin-bottom: 10px; }
-.proposicao { margin-bottom: 12px; }
+.proposicao { margin-bottom: 14px; }
+.resultado { font-style: italic; margin: 4px 0; }
 .votos { font-weight: bold; margin-top: 4px; }
 .video { margin: 8px 0; }
 </style>
@@ -91,7 +92,6 @@ async function carregarSessoes() {
         continuar = false;
         break;
       }
-
       const t = ((ev.titulo || "") + (ev.descricao || "")).toLowerCase();
       if (t.includes("sessão") && t.includes("deliberativa")) {
         sessoes.push(ev);
@@ -130,7 +130,6 @@ function criarSessao(ev) {
 function abrirSessao(ev) {
   const box = document.getElementById(`det-${ev.id}`);
   box.classList.toggle("oculto");
-
   if (box.dataset.carregado) return;
 
   box.innerHTML = "Carregando votações…";
@@ -142,7 +141,7 @@ function abrirSessao(ev) {
 }
 
 /* =====================
-   DETALHES + FILTRO
+   DETALHES + RESULTADO
 ===================== */
 async function carregarDetalhes(ev, votacoes, box) {
   let html = `
@@ -168,20 +167,25 @@ async function carregarDetalhes(ev, votacoes, box) {
     const resp = await fetch(`${BASE}/votacoes/${v.id}`);
     const d = await resp.json();
     const voto = d.dados;
-
     if (!voto?.proposicoesAfetadas) continue;
 
+    const resultado =
+      voto.resultado ||
+      voto.descricao ||
+      "Resultado não informado";
+
+    const resumoVotos = voto.resumoVotacao || "";
+
     voto.proposicoesAfetadas.forEach(p => {
-      const tipoSelecionado = seletorTipo.value;
-      if (tipoSelecionado && p.siglaTipo !== tipoSelecionado) return;
+      const filtro = seletorTipo.value;
+      if (filtro && p.siglaTipo !== filtro) return;
 
       box.innerHTML += `
         <div class="proposicao">
           ➡️ <strong>${p.siglaTipo} ${p.numero}/${p.ano}</strong><br>
           ${p.ementa || "Sem ementa"}<br>
-          <strong class="votos">
-            ${voto.resumoVotacao || ""}
-          </strong>
+          <div class="resultado"><strong>Resultado:</strong> ${resultado}</div>
+          ${resumoVotos ? `<div class="votos">${resumoVotos}</div>` : ""}
         </div>
       `;
     });
