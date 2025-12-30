@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-<title>Sessões do Plenário – Câmara dos Deputados</title>
+<title>Sessões Deliberativas – Câmara dos Deputados</title>
 
 <style>
 body { font-family: Arial, sans-serif; margin: 16px; }
@@ -24,7 +24,7 @@ body { font-family: Arial, sans-serif; margin: 16px; }
 </head>
 <body>
 
-<h1>Sessões do Plenário</h1>
+<h1>Sessões Deliberativas da Câmara</h1>
 <p><em>Nessas sessões ocorrem as votações oficiais.</em></p>
 
 <p id="status">Carregando sessões…</p>
@@ -35,7 +35,7 @@ const BASE = "https://dadosabertos.camara.leg.br/api/v2";
 const status = document.getElementById("status");
 const lista = document.getElementById("lista");
 
-// 🔹 PERÍODO: últimos 12 meses
+// 🔹 Período: últimos 12 meses
 const fim = new Date();
 const inicio = new Date();
 inicio.setFullYear(fim.getFullYear() - 1);
@@ -43,18 +43,18 @@ inicio.setFullYear(fim.getFullYear() - 1);
 const dataInicio = inicio.toISOString().slice(0, 10);
 const dataFim = fim.toISOString().slice(0, 10);
 
-fetch(`${BASE}/eventos?dataInicio=${dataInicio}&dataFim=${dataFim}&ordem=DESC&ordenarPor=dataHoraInicio&itens=200`)
+fetch(`${BASE}/eventos?dataInicio=${dataInicio}&dataFim=${dataFim}&ordem=DESC&ordenarPor=dataHoraInicio&itens=300`)
   .then(r => r.json())
   .then(json => {
     status.innerText = "";
 
     const eventos = (json.dados || []).filter(ev => {
       const texto = ((ev.titulo || "") + " " + (ev.descricao || "")).toLowerCase();
-      return texto.includes("plen");
+      return texto.includes("sessão") && texto.includes("deliberativa");
     });
 
     if (eventos.length === 0) {
-      status.innerText = "Nenhuma sessão encontrada no período.";
+      status.innerText = "Nenhuma sessão deliberativa encontrada no período.";
       return;
     }
 
@@ -63,9 +63,9 @@ fetch(`${BASE}/eventos?dataInicio=${dataInicio}&dataFim=${dataFim}&ordem=DESC&or
       div.className = "evento";
       div.innerHTML = `
         <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong>
-        ${ev.titulo || "Sessão do Plenário"}<br>
-        <span class="info">${ev.descricao || "Sessão com deliberações parlamentares."}</span><br>
-        <span class="tag">${ev.situacao || "Sessão oficial"}</span>
+        ${ev.titulo || "Sessão deliberativa"}<br>
+        <span class="info">${ev.descricao || "Sessão com deliberação parlamentar."}</span><br>
+        <span class="tag">Sessão deliberativa</span>
       `;
       lista.appendChild(div);
     });
