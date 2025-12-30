@@ -13,17 +13,19 @@
     .ativa { display: block; }
 
     .filtros { margin: 12px 0; }
-    .filtros input, .filtros select { padding: 6px; margin-right: 6px; }
+    .filtros input, .filtros select {
+      padding: 6px;
+      margin-right: 6px;
+    }
 
     .deputado {
-      display: flex; gap: 10px; border-bottom: 1px solid #ddd;
-      padding: 8px 0; cursor: pointer;
+      display: flex;
+      gap: 10px;
+      border-bottom: 1px solid #ddd;
+      padding: 8px 0;
+      cursor: pointer;
     }
     .deputado img { width: 60px; border-radius: 6px; }
-
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th, td { border: 1px solid #ccc; padding: 6px; }
-    th { background: #f0f0f0; }
 
     #detalhe img { width: 120px; border-radius: 8px; }
   </style>
@@ -34,7 +36,6 @@
 
 <nav>
   <button onclick="mostrar('lista')">Deputados</button>
-  <button onclick="mostrar('ranking')">Ranking</button>
   <button onclick="mostrar('detalhe')">Detalhes</button>
 </nav>
 
@@ -42,10 +43,12 @@
   <p id="status">Carregando deputados...</p>
 
   <div class="filtros">
-    <input type="text" id="filtroNome" placeholder="Nome" oninput="aplicarFiltros()">
+    <input type="text" id="filtroNome" placeholder="Filtrar por nome" oninput="aplicarFiltros()">
+
     <select id="filtroPartido" onchange="aplicarFiltros()">
       <option value="">Partido</option>
     </select>
+
     <select id="filtroUf" onchange="aplicarFiltros()">
       <option value="">UF</option>
     </select>
@@ -54,28 +57,10 @@
   <div id="listaDeputados"></div>
 </section>
 
-<section id="ranking" class="aba">
-  <p id="statusRanking">Clique para gerar o ranking</p>
-  <button onclick="gerarRanking()">Gerar ranking</button>
-
-  <table>
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Deputado</th>
-        <th>Partido</th>
-        <th>UF</th>
-        <th>Eventos</th>
-        <th>Plenário</th>
-      </tr>
-    </thead>
-    <tbody id="rankingBody"></tbody>
-  </table>
-</section>
-
 <section id="detalhe" class="aba">
   <h2 id="nomeDeputado"></h2>
   <img id="fotoDeputado">
+  <p><strong>Atividades no último ano</strong></p>
   <canvas id="grafico" width="420" height="300"></canvas>
 </section>
 
@@ -85,111 +70,125 @@ let deputados = [];
 let deputadosFiltrados = [];
 let chart = null;
 
-function mostrar(id){
+function mostrar(id) {
   document.querySelectorAll('.aba').forEach(a => a.classList.remove('ativa'));
   document.getElementById(id).classList.add('ativa');
 }
 
-/* LISTA */
+/* LISTA DE DEPUTADOS */
 fetch(`${BASE}/deputados?ordem=ASC&ordenarPor=nome`)
   .then(r => r.json())
-  .then(j => {
-    status.remove();
-    deputados = j.dados;
+  .then(json => {
+    document.getElementById('status').remove();
+    deputados = json.dados;
     deputadosFiltrados = deputados;
+
     preencherFiltros(deputados);
     renderizarLista(deputados);
   });
 
-function preencherFiltros(lista){
-  [...new Set(lista.map(d=>d.siglaPartido))].sort()
-    .forEach(p=>filtroPartido.innerHTML+=`<option>${p}</option>`);
-  [...new Set(lista.map(d=>d.siglaUf))].sort()
-    .forEach(u=>filtroUf.innerHTML+=`<option>${u}</option>`);
+function preencherFiltros(lista) {
+  const partidos = [...new Set(lista.map(d => d.siglaPartido))].sort();
+  const ufs = [...new Set(lista.map(d => d.siglaUf))].sort();
+
+  partidos.forEach(p =>
+    filtroPartido.innerHTML += `<option value="${p}">${p}</option>`
+  );
+  ufs.forEach(u =>
+    filtroUf.innerHTML += `<option value="${u}">${u}</option>`
+  );
 }
 
-function aplicarFiltros(){
-  const n=filtroNome.value.toLowerCase();
-  const p=filtroPartido.value;
-  const u=filtroUf.value;
+function aplicarFiltros() {
+  const nome = filtroNome.value.toLowerCase();
+  const partido = filtroPartido.value;
+  const uf = filtroUf.value;
+
   deputadosFiltrados = deputados.filter(d =>
-    d.nome.toLowerCase().includes(n) &&
-    (!p || d.siglaPartido===p) &&
-    (!u || d.siglaUf===u)
+    d.nome.toLowerCase().includes(nome) &&
+    (!partido || d.siglaPartido === partido) &&
+    (!uf || d.siglaUf === uf)
   );
+
   renderizarLista(deputadosFiltrados);
 }
 
-function renderizarLista(lista){
-  listaDeputados.innerHTML="";
-  lista.forEach(d=>{
-    const div=document.createElement("div");
-    div.className="deputado";
-    div.innerHTML=`
-      <img src="${d.urlFoto}">
-      <div><strong>${d.nome}</strong><br>${d.siglaPartido}-${d.siglaUf}</div>`;
-    div.onclick=()=>abrirDetalhe(d);
-    listaDeputados.appendChild(div);
+function renderizarLista(lista) {
+  const container = document.getElementById('listaDeputados');
+  container.innerHTML = "";
+
+  lista.forEach(dep => {
+    const div = document.createElement('div');
+    div.className = 'deputado';
+    div.innerHTML = `
+      <img src="${dep.urlFoto}">
+      <div>
+        <strong>${dep.nome}</strong><br>
+        ${dep.siglaPartido} - ${dep.siglaUf}
+      </div>
+    `;
+    div.onclick = () => abrirDetalhe(dep);
+    container.appendChild(div);
   });
 }
 
-/* RANKING (CORRIGIDO) */
-async function gerarRanking(){
-  rankingBody.innerHTML="";
-  statusRanking.innerText="Calculando ranking...";
-  
-  const fim=new Date();
-  const ini=new Date();
-  ini.setFullYear(fim.getFullYear()-1);
-  const di=ini.toISOString().slice(0,10);
-  const df=fim.toISOString().slice(0,10);
+/* DETALHE DO DEPUTADO */
+function abrirDetalhe(dep) {
+  mostrar('detalhe');
+  nomeDeputado.innerText = dep.nome;
+  fotoDeputado.src = dep.urlFoto;
 
-  const resultado=[];
+  const fim = new Date();
+  const inicio = new Date();
+  inicio.setFullYear(fim.getFullYear() - 1);
 
-  let pos=1;
-  for(const d of deputadosFiltrados){
-    statusRanking.innerText = `Calculando ${pos}/${deputadosFiltrados.length}...`;
-    pos++;
+  const dataIni = inicio.toISOString().slice(0,10);
+  const dataFim = fim.toISOString().slice(0,10);
 
-    try{
-      const r=await fetch(`${BASE}/deputados/${d.id}/eventos?dataInicio=${di}&dataFim=${df}&itens=1000`);
-      const j=await r.json();
-      const ev=j.dados||[];
+  fetch(`${BASE}/deputados/${dep.id}/eventos?dataInicio=${dataIni}&dataFim=${dataFim}&itens=1000`)
+    .then(r => r.json())
+    .then(json => {
+      const eventos = json.dados || [];
 
-      const plen=ev.filter(e =>
-        (e.localCamara?.nome||"").toLowerCase().includes("plenário") ||
-        (e.descricao||"").toLowerCase().includes("plenário")
+      const totalEventos = eventos.length;
+
+      const plenarios = eventos.filter(e =>
+        (e.localCamara?.nome || "").toLowerCase().includes("plenário") ||
+        (e.descricao || "").toLowerCase().includes("plenário")
       ).length;
 
-      resultado.push({nome:d.nome,partido:d.siglaPartido,uf:d.siglaUf,eventos:ev.length,plen});
-    }catch{
-      resultado.push({nome:d.nome,partido:d.siglaPartido,uf:d.siglaUf,eventos:0,plen:0});
-    }
-  }
-
-  resultado.sort((a,b)=>b.eventos-a.eventos);
-
-  resultado.forEach((d,i)=>{
-    rankingBody.innerHTML+=`
-    <tr>
-      <td>${i+1}</td>
-      <td>${d.nome}</td>
-      <td>${d.partido}</td>
-      <td>${d.uf}</td>
-      <td>${d.eventos}</td>
-      <td>${d.plen}</td>
-    </tr>`;
-  });
-
-  statusRanking.innerText=`Ranking gerado (${resultado.length})`;
+      desenharGrafico(totalEventos, plenarios);
+    });
 }
 
-/* DETALHE */
-function abrirDetalhe(d){
-  mostrar("detalhe");
-  nomeDeputado.innerText=d.nome;
-  fotoDeputado.src=d.urlFoto;
+/* GRÁFICO */
+function desenharGrafico(eventos, plenarios) {
+  const ctx = document.getElementById('grafico');
+  if (chart) chart.destroy();
+
+  chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Eventos', 'Atividades no Plenário'],
+      datasets: [{
+        label: 'Quantidade',
+        data: [eventos, plenarios],
+        backgroundColor: ['#4CAF50', '#2196F3'],
+        minBarLength: 6
+      }]
+    },
+    options: {
+      responsive: false,
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { precision: 0 }
+        }
+      }
+    }
+  });
 }
 </script>
+
 </body>
 </html>
