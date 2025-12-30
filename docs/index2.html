@@ -12,7 +12,12 @@ nav button { margin-right: 8px; padding: 8px 12px; cursor: pointer; }
 
 .votacao {
   border-bottom: 1px solid #ddd;
-  padding: 8px 0;
+  padding: 10px 0;
+}
+
+.placar {
+  font-size: 14px;
+  margin-top: 4px;
 }
 
 .voto {
@@ -54,6 +59,7 @@ nav button { margin-right: 8px; padding: 8px 12px; cursor: pointer; }
 <section id="detalhe" class="aba">
   <h2 id="tituloVotacao"></h2>
   <p id="infoVotacao"></p>
+  <p id="placarDetalhe"></p>
   <div id="listaVotos"></div>
 </section>
 
@@ -66,7 +72,7 @@ function mostrar(id) {
 }
 
 /* =========================
-   LISTAR VOTAÇÕES NOMINAIS
+   LISTAR VOTAÇÕES
 ========================= */
 fetch(`${BASE}/votacoes?ordem=DESC&ordenarPor=dataHoraRegistro&itens=20`)
   .then(r => r.json())
@@ -75,51 +81,69 @@ fetch(`${BASE}/votacoes?ordem=DESC&ordenarPor=dataHoraRegistro&itens=20`)
     if (status) status.innerText = "";
 
     json.dados.forEach(v => {
-      const div = document.createElement("div");
-      div.className = "votacao";
-      div.innerHTML = `
-        <strong>${new Date(v.data).toLocaleDateString()}</strong><br>
-        ${v.descricao || "Sem descrição"}<br>
-        <button>Ver votos</button>
-      `;
-      div.querySelector("button").onclick = () => abrirVotacao(v);
-      listaVotacoes.appendChild(div);
+      // Buscar votos para gerar placar
+      fetch(`${BASE}/votacoes/${v.id}/votos?itens=1000`)
+        .then(r => r.json())
+        .then(votosJson => {
+
+          const votos = votosJson.dados || [];
+
+          if (votos.length === 0) return; // ignora votações não nominais
+
+          let sim = 0, nao = 0, abs = 0;
+          votos.forEach(vt => {
+            if (vt.voto === "Sim") sim++;
+            else if (vt.voto === "Não") nao++;
+            else abs++;
+          });
+
+          const div = document.createElement("div");
+          div.className = "votacao";
+          div.innerHTML = `
+            <strong>${new Date(v.data).toLocaleDateString()}</strong><br>
+            ${v.descricao || "Sem descrição"}<br>
+            <div class="placar">
+              Placar: ✅ ${sim} | ❌ ${nao} | ⚪ ${abs}
+            </div>
+            <button>Ver votos</button>
+          `;
+
+          div.querySelector("button").onclick = () =>
+            abrirVotacao(v, sim, nao, abs);
+
+          listaVotacoes.appendChild(div);
+        });
     });
-  })
-  .catch(() => {
-    statusVotacoes.innerText = "Erro ao carregar votações";
   });
 
 /* =========================
-   ABRIR VOTAÇÃO E VOTOS
+   DETALHE DA VOTAÇÃO
 ========================= */
-function abrirVotacao(v) {
+function abrirVotacao(v, sim, nao, abs) {
   mostrar("detalhe");
 
-  tituloVotacao.innerText = `Votação em ${new Date(v.data).toLocaleDateString()}`;
-  infoVotacao.innerText = v.descricao || "";
+  tituloVotacao.innerText =
+    `Votação em ${new Date(v.data).toLocaleDateString()}`;
+
+  infoVotacao.innerText =
+    v.descricao || "Sem descrição";
+
+  placarDetalhe.innerText =
+    `Placar: ✅ ${sim} | ❌ ${nao} | ⚪ ${abs}`;
 
   listaVotos.innerHTML = "Carregando votos...";
 
   fetch(`${BASE}/votacoes/${v.id}/votos?itens=1000`)
     .then(r => r.json())
     .then(json => {
-      const votos = json.dados || [];
       listaVotos.innerHTML = "";
-
-      if (votos.length === 0) {
-        listaVotos.innerHTML = "Esta votação não possui votos nominais.";
-        return;
-      }
-
-      votos.forEach(vt => {
-        const voto = document.createElement("div");
-        voto.className = "voto";
-
+      json.dados.forEach(vt => {
         let classe = "abs";
         if (vt.voto === "Sim") classe = "sim";
         if (vt.voto === "Não") classe = "nao";
 
+        const voto = document.createElement("div");
+        voto.className = "voto";
         voto.innerHTML = `
           <img src="${vt.deputado_.urlFoto}">
           <div>
@@ -131,9 +155,6 @@ function abrirVotacao(v) {
 
         listaVotos.appendChild(voto);
       });
-    })
-    .catch(() => {
-      listaVotos.innerHTML = "Erro ao carregar votos.";
     });
 }
 </script>
