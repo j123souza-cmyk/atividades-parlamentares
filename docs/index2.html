@@ -38,9 +38,9 @@ const lista = document.getElementById("lista");
 const seletor = document.getElementById("periodo");
 
 /* =====================
-   CARREGAR SESSÕES
+   CARREGAMENTO COM PAGINAÇÃO
 ===================== */
-function carregarSessoes() {
+async function carregarSessoes() {
   lista.innerHTML = "";
   status.innerText = "Carregando sessões…";
 
@@ -52,23 +52,36 @@ function carregarSessoes() {
   const dataInicio = inicio.toISOString().slice(0,10);
   const dataFim = fim.toISOString().slice(0,10);
 
-  fetch(`${BASE}/eventos?dataInicio=${dataInicio}&dataFim=${dataFim}&ordenarPor=dataHoraInicio&ordem=DESC&itens=300`)
-    .then(r => r.json())
-    .then(json => {
-      const sessoes = (json.dados || []).filter(e => {
-        const t = ((e.titulo || "") + (e.descricao || "")).toLowerCase();
-        return t.includes("sessão") && t.includes("deliberativa");
-      });
+  let pagina = 1;
+  let todas = [];
+  let continuar = true;
 
-      status.innerText = sessoes.length
-        ? "Clique em uma sessão para ver os detalhes"
-        : "Nenhuma sessão encontrada.";
+  while (continuar && pagina <= 10) { // limite de segurança
+    const resp = await fetch(
+      `${BASE}/eventos?dataInicio=${dataInicio}&dataFim=${dataFim}` +
+      `&ordenarPor=dataHoraInicio&ordem=DESC&pagina=${pagina}&itens=100`
+    );
+    const json = await resp.json();
+    const dados = json.dados || [];
 
-      sessoes.forEach(criarSessao);
-    })
-    .catch(() => {
-      status.innerText = "Erro ao carregar sessões.";
-    });
+    if (!dados.length) {
+      continuar = false;
+    } else {
+      todas = todas.concat(dados);
+      pagina++;
+    }
+  }
+
+  const sessoes = todas.filter(e => {
+    const t = ((e.titulo || "") + (e.descricao || "")).toLowerCase();
+    return t.includes("sessão") && t.includes("deliberativa");
+  });
+
+  status.innerText = sessoes.length
+    ? `Sessões encontradas: ${sessoes.length}`
+    : "Nenhuma sessão encontrada.";
+
+  sessoes.forEach(criarSessao);
 }
 
 /* =====================
