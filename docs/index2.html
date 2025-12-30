@@ -122,6 +122,19 @@ function abrirSessao(ev) {
 }
 
 /* =====================
+   UTIL – LIMPAR TEXTO
+===================== */
+function limparTextoResultado(txt) {
+  return txt
+    .replace(/Sim\s*:\s*\d+/gi, "")
+    .replace(/Não\s*:\s*\d+/gi, "")
+    .replace(/Abstenção\s*:\s*\d+/gi, "")
+    .replace(/Total\s*:\s*\d+/gi, "")
+    .replace(/[;,.]\s*(?=[;,]|$)/g, "")
+    .trim();
+}
+
+/* =====================
    MONTAR VOTAÇÕES
 ===================== */
 function montarVotacoes(ev, listaVotacoes, box) {
@@ -153,10 +166,10 @@ function montarVotacoes(ev, listaVotacoes, box) {
     votacoes.forEach(v => {
       if (!v || !v.proposicoesAfetadas?.length) return;
 
-      const texto = (v.resultado || v.descricao || "");
+      const bruto = (v.resultado || v.descricao || "");
 
       const extrair = lbl => {
-        const m = texto.match(new RegExp(lbl+"\\s*:?\\s*(\\d+)", "i"));
+        const m = bruto.match(new RegExp(lbl+"\\s*:?\\s*(\\d+)", "i"));
         return m ? parseInt(m[1]) : null;
       };
 
@@ -165,18 +178,22 @@ function montarVotacoes(ev, listaVotacoes, box) {
       const abst = extrair("Abstenção");
       const total = extrair("Total");
 
+      const textoLimpo = limparTextoResultado(bruto);
+
       v.proposicoesAfetadas.forEach(p => {
         box.innerHTML += `
           ➡️ <strong>${p.siglaTipo} ${p.numero}/${p.ano}</strong><br>
           ${p.ementa || "Sem ementa"}<br>
-          <em>Resultado:</em> ${texto || "Não informado"}<br>
-          <em>Tipo de votação:</em> Nominal<br>
-          ${sim!==null ? `
-            <div class="placar">
-              Sim: ${sim}; Não: ${nao??0}; Abstenção: ${abst??0};
-              Total: ${total ?? (sim+(nao??0)+(abst??0))}.
-            </div>` : ""}
-          <br>
+
+          ${sim !== null ? `
+          <div class="placar">
+            Sim: ${sim}; Não: ${nao??0}; Abstenção: ${abst??0};
+            Total: ${total ?? (sim+(nao??0)+(abst??0))}
+          </div>` : ""}
+
+          <em>Resultado:</em> ${textoLimpo || "Não informado"}<br>
+          <em>Tipo de votação:</em> Nominal
+          <br><br>
         `;
       });
     });
