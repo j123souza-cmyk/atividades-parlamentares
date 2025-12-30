@@ -12,6 +12,7 @@ body { font-family: Arial, sans-serif; margin: 20px; }
 .detalhe { margin-top: 8px; padding: 10px; background: #fafafa; border-left: 3px solid #005ea8; }
 .oculto { display: none; }
 #status { font-weight: bold; margin-bottom: 10px; }
+.placar { margin-top: 6px; font-weight: bold; }
 </style>
 </head>
 
@@ -117,7 +118,6 @@ function abrirSessao(ev) {
   }
 
   box.classList.remove("oculto");
-
   if (box.dataset.carregado) return;
 
   box.innerHTML = "Carregando votações…";
@@ -152,42 +152,53 @@ function montarVotacoes(ev, votacoes, box) {
     votacoes.map(v =>
       fetch(`${BASE}/votacoes/${v.id}`)
         .then(r => r.json())
-        .then(d => ({ meta: v, detalhe: d.dados }))
+        .then(d => d.dados)
         .catch(() => null)
     )
   ).then(lista => {
-    lista.forEach(item => {
-      if (!item || !item.detalhe) return;
-
-      const v = item.detalhe;
-      if (!v.proposicoesAfetadas?.length) return;
+    lista.forEach(v => {
+      if (!v || !v.proposicoesAfetadas?.length) return;
 
       v.proposicoesAfetadas.forEach(p => {
-        const tipoId = `tipo-${v.id}-${p.id}`;
+        const idInfo = `info-${v.id}-${p.id}`;
 
         box.innerHTML += `
           ➡️ <strong>${p.siglaTipo} ${p.numero}/${p.ano}</strong><br>
           ${p.ementa || "Sem ementa"}<br>
           <em>Resultado:</em> ${v.resultado || v.descricao || "Não informado"}<br>
-          <span id="${tipoId}"><em>Tipo de votação:</em> Verificando…</span><br><br>
+          <span id="${idInfo}"><em>Tipo de votação:</em> Verificando…</span><br>
+          <div id="placar-${idInfo}" class="placar"></div><br>
         `;
 
-        /* Detectar se é nominal */
         fetch(`${BASE}/votacoes/${v.id}/votos`)
           .then(r => r.json())
           .then(res => {
-            const el = document.getElementById(tipoId);
-            if (!el) return;
+            const info = document.getElementById(idInfo);
+            const placarDiv = document.getElementById(`placar-${idInfo}`);
 
-            if (res.dados && res.dados.length > 0) {
-              el.innerHTML = "<em>Tipo de votação:</em> Nominal";
-            } else {
-              el.innerHTML = "<em>Tipo de votação:</em> Simbólica (não nominal)";
+            if (!res.dados || res.dados.length === 0) {
+              info.innerHTML = "<em>Tipo de votação:</em> Simbólica (não nominal)";
+              return;
             }
+
+            info.innerHTML = "<em>Tipo de votação:</em> Nominal";
+
+            let sim = 0, nao = 0, abst = 0;
+            res.dados.forEach(voto => {
+              if (voto.voto === "Sim") sim++;
+              else if (voto.voto === "Não") nao++;
+              else abst++;
+            });
+
+            const total = sim + nao + abst;
+
+            placarDiv.innerHTML = `
+              Sim: ${sim}; Não: ${nao}; Abstenção: ${abst}; Total: ${total}.
+            `;
           })
           .catch(() => {
-            const el = document.getElementById(tipoId);
-            if (el) el.innerHTML = "<em>Tipo de votação:</em> Simbólica (não nominal)";
+            const info = document.getElementById(idInfo);
+            if (info) info.innerHTML = "<em>Tipo de votação:</em> Simbólica (não nominal)";
           });
       });
     });
