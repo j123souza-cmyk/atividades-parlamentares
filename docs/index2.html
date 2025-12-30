@@ -19,10 +19,9 @@ h1 {
   margin-bottom: 15px;
 }
 
-select, button {
+select {
   padding: 6px 10px;
   font-size: 14px;
-  margin-right: 8px;
 }
 
 .contador {
@@ -54,7 +53,6 @@ select, button {
     <option value="3" selected>Últimos 3 meses</option>
     <option value="6">Últimos 6 meses</option>
   </select>
-  <button onclick="carregarSessoes()">Filtrar</button>
 </div>
 
 <div id="contador" class="contador"></div>
@@ -86,13 +84,13 @@ function carregarSessoes() {
     .then(json => {
       const sessoes = json.dados || [];
 
+      contador.textContent = `Sessões encontradas no período: ${sessoes.length}`;
+
       if (sessoes.length === 0) {
         resultado.innerHTML = "<p>Nenhuma sessão encontrada.</p>";
-        contador.textContent = "Sessões encontradas: 0";
         return;
       }
 
-      contador.textContent = `Sessões encontradas no período: ${sessoes.length}`;
       resultado.innerHTML = "";
 
       sessoes.forEach(sessao => {
@@ -110,13 +108,16 @@ function carregarSessoes() {
         resultado.appendChild(div);
       });
     })
-    .catch(erro => {
-      console.error(erro);
+    .catch(err => {
+      console.error(err);
       resultado.innerHTML = "<p>Erro ao carregar sessões.</p>";
     });
 }
 
-// carregar automaticamente ao abrir (3 meses)
+// 🔁 recarrega automaticamente ao trocar o período
+document.getElementById("periodo").addEventListener("change", carregarSessoes);
+
+// carrega ao abrir (3 meses)
 carregarSessoes();
 </script>
 
