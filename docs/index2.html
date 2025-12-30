@@ -186,11 +186,17 @@ function montarVotacoes(ev, votacoes, box) {
             let sim = 0, nao = 0, abst = 0;
 
             res.dados.forEach(voto => {
-              const v = (voto.voto || "").toLowerCase();
+              const vtxt = (voto.voto || "").toLowerCase();
 
-              if (v === "sim") sim++;
-              else if (v === "não" || v === "nao") nao++;
-              else abst++;
+              if (vtxt === "sim") sim++;
+              else if (vtxt === "não" || vtxt === "nao") nao++;
+              else if (
+                vtxt === "abstenção" ||
+                vtxt === "abstencao" ||
+                vtxt === "branco" ||
+                vtxt.includes("art")
+              ) abst++;
+              // outros casos são ignorados (ausência, obstrução, etc.)
             });
 
             const total = sim + nao + abst;
