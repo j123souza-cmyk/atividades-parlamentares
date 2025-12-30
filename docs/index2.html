@@ -1,71 +1,39 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <meta charset="UTF-8">
-<title>Votações Plenário</title>
+<title>Teste Votações</title>
 
 <body>
-<h2>Últimas votações em Plenário</h2>
+<h2>Votações (teste)</h2>
 <p id="status">Carregando...</p>
-<div id="lista"></div>
+<pre id="out"></pre>
 
 <script>
 const BASE = "https://dadosabertos.camara.leg.br/api/v2";
 
-fetch(`${BASE}/votacoes?ordem=DESC&ordenarPor=dataHoraRegistro&itens=20`)
-  .then(r => r.json())
+const fim = new Date();
+const inicio = new Date();
+inicio.setDate(fim.getDate() - 30);
+
+const url =
+  `${BASE}/votacoes` +
+  `?dataInicio=${inicio.toISOString().slice(0,10)}` +
+  `&dataFim=${fim.toISOString().slice(0,10)}` +
+  `&ordem=DESC&ordenarPor=dataHoraRegistro&itens=5`;
+
+fetch(url)
+  .then(r => {
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return r.json();
+  })
   .then(j => {
     status.remove();
-
-    const plenarias = j.dados.filter(v =>
-      v.orgaos && v.orgaos.some(o =>
-        o.sigla && o.sigla.toLowerCase().includes("plen")
-      )
-    );
-
-    if (plenarias.length === 0) {
-      lista.innerHTML = "Nenhuma votação de plenário encontrada.";
-      return;
-    }
-
-    plenarias.forEach(v => {
-      const div = document.createElement("div");
-      div.style.borderBottom = "1px solid #ccc";
-      div.style.padding = "8px 0";
-
-      div.innerHTML = `
-        <strong>${v.descricao || "Votação"}</strong><br>
-        ${new Date(v.dataHoraRegistro).toLocaleString("pt-BR")}<br>
-        Tipo: <b>${v.tipoVotacao}</b>
-      `;
-
-      if (v.tipoVotacao === "NOMINAL") {
-        const btn = document.createElement("button");
-        btn.innerText = "Ver votos";
-        btn.onclick = () => verVotos(v.id, div);
-        div.appendChild(document.createElement("br"));
-        div.appendChild(btn);
-      } else {
-        div.innerHTML += `<p style="color:#777">Votação simbólica</p>`;
-      }
-
-      lista.appendChild(div);
-    });
+    out.textContent = JSON.stringify(j.dados, null, 2);
   })
-  .catch(e => status.innerText = "Erro ao carregar");
-
-function verVotos(id, container) {
-  fetch(`${BASE}/votacoes/${id}/votos`)
-    .then(r => r.json())
-    .then(j => {
-      const ul = document.createElement("ul");
-      j.dados.forEach(v => {
-        const li = document.createElement("li");
-        li.textContent = `${v.deputado_.nome} (${v.deputado_.siglaPartido}-${v.deputado_.siglaUf}): ${v.tipoVoto}`;
-        ul.appendChild(li);
-      });
-      container.appendChild(ul);
-    });
-}
+  .catch(e => {
+    status.innerText = "Erro ao carregar votações";
+    out.textContent = e.message;
+  });
 </script>
 </body>
 </html>
