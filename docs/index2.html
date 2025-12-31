@@ -27,17 +27,6 @@ select, input {
 
 .evento:hover { background: #f2f2f2; }
 
-.importante {
-  background: #fff8e1;
-  border-left: 5px solid #ff9800;
-}
-
-.badge {
-  color: #e65100;
-  font-weight: bold;
-  margin-left: 6px;
-}
-
 .detalhe {
   margin-top: 8px;
   padding: 10px;
@@ -64,6 +53,12 @@ select, input {
 .busca input {
   width: 100%;
   box-sizing: border-box;
+}
+
+/* Destaque do termo pesquisado */
+.highlight {
+  font-weight: bold;
+  color: blue;
 }
 </style>
 </head>
@@ -177,14 +172,14 @@ function abrirSessao(ev, bloco) {
 
   fetch(`${BASE}/eventos/${ev.id}/votacoes`)
     .then(r => r.json())
-    .then(res => carregarDetalhes(ev, res.dados || [], box, bloco))
+    .then(res => carregarDetalhes(ev, res.dados || [], box))
     .catch(() => box.innerText = "Erro ao carregar votações.");
 }
 
 /* =====================
-   DETALHES + DESTAQUE
+   DETALHES
 ===================== */
-async function carregarDetalhes(ev, votacoes, box, blocoSessao) {
+async function carregarDetalhes(ev, votacoes, box) {
 
   let html = `
     <strong>Sessão para votação de propostas legislativas</strong><br><br>
@@ -198,19 +193,15 @@ async function carregarDetalhes(ev, votacoes, box, blocoSessao) {
   }
 
   html += `<div class="lista-props"></div>`;
-
   box.innerHTML = html;
 
   const containerProps = box.querySelector(".lista-props");
-  let contadorVotacoes = 0;
 
   for (const v of votacoes) {
     const resp = await fetch(`${BASE}/votacoes/${v.id}`);
     const d = await resp.json();
     const voto = d.dados;
     if (!voto?.proposicoesAfetadas) continue;
-
-    contadorVotacoes++;
 
     const resultado = voto.resultado || voto.descricao || "Resultado não informado";
     const resumoVotos = voto.resumoVotacao || "";
@@ -233,26 +224,34 @@ async function carregarDetalhes(ev, votacoes, box, blocoSessao) {
     });
   }
 
-  /* 🔥 Destaque de sessão importante */
-  if (contadorVotacoes >= 3) {
-    blocoSessao.classList.add("importante");
-    blocoSessao.querySelector("strong").innerHTML +=
-      `<span class="badge">🔥 Sessão Importante</span>`;
-  }
-
   box.dataset.carregado = "1";
 }
 
 /* =====================
-   FILTRO DE SESSÕES PELO TEXTO
+   BUSCA DE TEXTO
 ===================== */
 buscaGeral.addEventListener("input", () => {
   const termo = buscaGeral.value.toLowerCase();
+  const regex = new RegExp(`(${termo})`, "gi");
+
   document.querySelectorAll(".evento").forEach(sessao => {
     const detalhe = sessao.querySelector(".detalhe");
     const textoSessao = sessao.innerText.toLowerCase();
     const textoDetalhe = detalhe?.innerText.toLowerCase() || "";
-    sessao.style.display = (textoSessao + textoDetalhe).includes(termo) ? "" : "none";
+    const corresponde = (textoSessao + textoDetalhe).includes(termo);
+
+    if (corresponde) {
+      sessao.style.display = "";
+      if (termo) {
+        // Destaque em azul e negrito
+        detalhe.querySelectorAll(".proposicao").forEach(p => {
+          p.innerHTML = p.innerHTML.replace(/<span class="highlight">|<\/span>/g, "");
+          p.innerHTML = p.innerHTML.replace(regex, '<span class="highlight">$1</span>');
+        });
+      }
+    } else {
+      sessao.style.display = "none";
+    }
   });
 });
 
