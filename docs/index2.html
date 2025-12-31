@@ -46,15 +46,6 @@ select, input {
 
 .video { margin: 8px 0; }
 
-.busca {
-  margin: 10px 0;
-  width: 100%;
-}
-.busca input {
-  width: 100%;
-  box-sizing: border-box;
-}
-
 .highlight {
   font-weight: bold;
   color: blue;
@@ -75,7 +66,7 @@ select, input {
     </select>
   </div>
 
-  <div class="busca">
+  <div class="busca" style="flex:1;">
     🔎 <input type="text" id="buscaGeral" placeholder="Buscar texto nas sessões…" />
   </div>
 </div>
@@ -138,6 +129,7 @@ async function carregarSessoes() {
     : "Nenhuma sessão encontrada.";
 
   sessoes.forEach(criarSessao);
+  aplicarBusca(); // aplica busca imediata caso já tenha texto digitado
 }
 
 /* =====================
@@ -171,15 +163,14 @@ function abrirSessao(ev, bloco) {
 
   fetch(`${BASE}/eventos/${ev.id}/votacoes`)
     .then(r => r.json())
-    .then(res => carregarDetalhes(ev, res.dados || [], box))
+    .then(res => carregarDetalhes(ev, res.dados || [], box, bloco))
     .catch(() => box.innerText = "Erro ao carregar votações.");
 }
 
 /* =====================
-   DETALHES + LINKS
+   DETALHES COM VOTAÇÕES
 ===================== */
-async function carregarDetalhes(ev, votacoes, box) {
-
+async function carregarDetalhes(ev, votacoes, box, blocoSessao) {
   let html = `
     <strong>Sessão para votação de propostas legislativas</strong><br><br>
     <strong>Local:</strong> Plenário da Câmara dos Deputados<br>
@@ -193,13 +184,17 @@ async function carregarDetalhes(ev, votacoes, box) {
 
   html += `<div class="lista-props"></div>`;
   box.innerHTML = html;
+
   const containerProps = box.querySelector(".lista-props");
+  let contadorVotacoes = 0;
 
   for (const v of votacoes) {
     const resp = await fetch(`${BASE}/votacoes/${v.id}`);
     const d = await resp.json();
     const voto = d.dados;
     if (!voto?.proposicoesAfetadas) continue;
+
+    contadorVotacoes++;
 
     const resultado = voto.resultado || voto.descricao || "Resultado não informado";
     const resumoVotos = voto.resumoVotacao || "";
@@ -223,45 +218,58 @@ async function carregarDetalhes(ev, votacoes, box) {
   }
 
   box.dataset.carregado = "1";
-  aplicarDestaqueBusca(); // ✅ aplica o destaque ao abrir sessão
+  aplicarBusca(); // reaplica destaque após abrir sessão
 }
 
 /* =====================
-   DESTAQUE DE TEXTO
+   BUSCA DE TEXTO
 ===================== */
-function aplicarDestaqueBusca() {
+function aplicarBusca() {
   const termo = buscaGeral.value.trim();
-  if (!termo) return;
+  if (!termo) {
+    document.querySelectorAll(".evento").forEach(sessao => sessao.style.display = "");
+    return;
+  }
 
   const regex = new RegExp(`(${termo})`, "gi");
 
   document.querySelectorAll(".evento").forEach(sessao => {
     const detalhe = sessao.querySelector(".detalhe");
-    // Percorre apenas elementos de texto puro dentro das proposições
-    detalhe.querySelectorAll(".proposicao").forEach(p => {
-      p.childNodes.forEach(n => {
-        if (n.nodeType === Node.TEXT_NODE) {
-          n.textContent = n.textContent.replace(regex, "**$1**"); // temporário
-        } else if (n.nodeType === Node.ELEMENT_NODE) {
-          n.innerHTML = n.innerHTML.replace(regex, '<span class="highlight">$1</span>');
-        }
-      });
+    const textoSessao = sessao.querySelector("strong").innerText.toLowerCase();
+    const textoDetalhe = detalhe ? detalhe.innerText.toLowerCase() : "";
+    const contem = textoSessao.includes(termo.toLowerCase()) || textoDetalhe.includes(termo.toLowerCase());
+
+    sessao.style.display = contem ? "" : "none";
+
+    // remove destaques antigos
+    detalhe?.querySelectorAll(".highlight").forEach(h => {
+      const parent = h.parentNode;
+      parent.replaceChild(document.createTextNode(h.innerText), h);
+      parent.normalize();
     });
+
+    // aplica novo destaque
+    if (detalhe && contem) {
+      detalhe.querySelectorAll(".proposicao").forEach(p => {
+        const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT, null, false);
+        let node;
+        const nodesToReplace = [];
+        while (node = walker.nextNode()) {
+          if (node.nodeValue.toLowerCase().includes(termo.toLowerCase())) {
+            nodesToReplace.push(node);
+          }
+        }
+        nodesToReplace.forEach(textNode => {
+          const span = document.createElement('span');
+          span.innerHTML = textNode.nodeValue.replace(regex, '<span class="highlight">$1</span>');
+          textNode.parentNode.replaceChild(span, textNode);
+        });
+      });
+    }
   });
 }
 
-/* =====================
-   FILTRO DE SESSÕES PELO TEXTO
-===================== */
-buscaGeral.addEventListener("input", () => {
-  const termo = buscaGeral.value.toLowerCase();
-  document.querySelectorAll(".evento").forEach(sessao => {
-    const detalhe = sessao.querySelector(".detalhe");
-    const textoSessao = sessao.innerText.toLowerCase();
-    const textoDetalhe = detalhe?.innerText.toLowerCase() || "";
-    sessao.style.display = (textoSessao + textoDetalhe).includes(termo) ? "" : "none";
-  });
-});
+buscaGeral.addEventListener("input", aplicarBusca);
 
 /* =====================
    EVENTOS
