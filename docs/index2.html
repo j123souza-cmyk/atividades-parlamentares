@@ -46,16 +46,10 @@ select, input {
 
 .video { margin: 8px 0; }
 
-.highlight {
-  font-weight: bold;
-  color: red;
-}
+.highlight { font-weight: bold; color: red; }
 
-.palavraEncontrada {
-  color: blue;
-  font-weight: bold;
-  margin-left: 5px;
-}
+.sinaliza { color: blue; font-weight: bold; margin-left: 6px; }
+
 </style>
 </head>
 
@@ -72,7 +66,7 @@ select, input {
     </select>
   </div>
 
-  <div class="busca" style="flex:1;">
+  <div style="flex:1;">
     🔎 <input type="text" id="buscaGeral" placeholder="Buscar texto nas sessões…" />
   </div>
 </div>
@@ -87,7 +81,8 @@ const lista = document.getElementById("lista");
 const seletorPeriodo = document.getElementById("periodo");
 const buscaGeral = document.getElementById("buscaGeral");
 
-const cacheProposicoes = {}; // pré-carregamento de proposições
+// Cache para proposições carregadas
+const cacheProposicoes = {};
 
 /* =====================
    BUSCAR SESSÕES
@@ -115,19 +110,15 @@ async function carregarSessoes() {
     );
     const json = await resp.json();
     const dados = json.dados || [];
-
     if (!dados.length) break;
 
     for (const ev of dados) {
       const texto = ((ev.titulo || "") + (ev.descricao || "")).toLowerCase();
-      if (
-        texto.includes("sessão") &&
-        !texto.includes("audiência") &&
-        !texto.includes("mesa") &&
-        !texto.includes("seminário")
-      ) {
+      if (texto.includes("sessão") &&
+          !texto.includes("audiência") &&
+          !texto.includes("mesa") &&
+          !texto.includes("seminário")) {
         sessoes.push(ev);
-        preCarregarProposicoes(ev); // pré-carrega as proposições
       }
     }
     pagina++;
@@ -138,11 +129,11 @@ async function carregarSessoes() {
     : "Nenhuma sessão encontrada.";
 
   sessoes.forEach(criarSessao);
-  aplicarBusca(); // aplica busca imediata caso já tenha texto digitado
+  aplicarBusca(); // aplica busca se já houver texto
 }
 
 /* =====================
-   LISTAGEM
+   CRIAR SESSÃO
 ===================== */
 function criarSessao(ev) {
   const div = document.createElement("div");
@@ -150,8 +141,7 @@ function criarSessao(ev) {
   div.id = `sessao-${ev.id}`;
 
   div.innerHTML = `
-    <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong>
-    <span class="palavraEncontrada oculto">🔍 Palavra encontrada</span><br>
+    <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong><span class="sinaliza"></span><br>
     Sessão do Plenário
     <div id="det-${ev.id}" class="detalhe oculto"></div>
   `;
@@ -167,7 +157,11 @@ function abrirSessao(ev, bloco) {
   const box = document.getElementById(`det-${ev.id}`);
   box.classList.toggle("oculto");
 
-  if (box.dataset.carregado) return;
+  if (cacheProposicoes[ev.id]) {
+    box.innerHTML = cacheProposicoes[ev.id];
+    destacarPalavra(ev.id);
+    return;
+  }
 
   box.innerHTML = "Carregando votações…";
 
@@ -178,7 +172,7 @@ function abrirSessao(ev, bloco) {
 }
 
 /* =====================
-   DETALHES + DESTAQUE
+   CARREGAR DETALHES
 ===================== */
 async function carregarDetalhes(ev, votacoes, box, blocoSessao) {
   let html = `
@@ -194,119 +188,96 @@ async function carregarDetalhes(ev, votacoes, box, blocoSessao) {
 
   html += `<div class="lista-props"></div>`;
   box.innerHTML = html;
-
   const containerProps = box.querySelector(".lista-props");
-  const props = cacheProposicoes[ev.id] || [];
 
-  props.forEach(p => {
-    const pHtml = document.createElement("div");
-    pHtml.className = "proposicao";
-    const resultado = p.resultado || "Resultado não informado";
-    const resumoVotos = p.resumoVotacao || "";
-    pHtml.innerHTML = `
-      ➡️ <strong>
-        <a href="https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${p.id}"
-           target="_blank">
-          ${p.siglaTipo} ${p.numero}/${p.ano}
-        </a>
-      </strong><br>
-      ${p.ementa || "Sem ementa"}<br>
-      <div class="resultado"><strong>Resultado:</strong> ${resultado}</div>
-      ${resumoVotos ? `<div class="votos">${resumoVotos}</div>` : ""}
-    `;
-    containerProps.appendChild(pHtml);
-  });
+  for (const v of votacoes) {
+    const resp = await fetch(`${BASE}/votacoes/${v.id}`);
+    const d = await resp.json();
+    const voto = d.dados;
+    if (!voto?.proposicoesAfetadas) continue;
 
-  box.dataset.carregado = "1";
-  aplicarBusca(); // reaplica destaque
-}
+    const resultado = voto.resultado || voto.descricao || "Resultado não informado";
+    const resumoVotos = voto.resumoVotacao || "";
 
-/* =====================
-   PRÉ-CARREGAMENTO DE PROPOSIÇÕES
-===================== */
-async function preCarregarProposicoes(ev) {
-  try {
-    const respVot = await fetch(`${BASE}/eventos/${ev.id}/votacoes`);
-    const votacoes = (await respVot.json()).dados || [];
-
-    const resultados = await Promise.all(votacoes.map(async v => {
-      try {
-        const r = await fetch(`${BASE}/votacoes/${v.id}`);
-        const d = await r.json();
-        return d.dados?.proposicoesAfetadas?.map(p => ({
-          ...p,
-          resultado: d.dados.resultado,
-          resumoVotacao: d.dados.resumoVotacao
-        })) || [];
-      } catch {
-        return [];
-      }
-    }));
-
-    cacheProposicoes[ev.id] = resultados.flat();
-    aplicarBusca();
-  } catch (e) {
-    console.error("Erro ao pré-carregar proposições da sessão", ev.id, e);
+    voto.proposicoesAfetadas.forEach(p => {
+      const pHtml = document.createElement("div");
+      pHtml.className = "proposicao";
+      pHtml.innerHTML = `
+        ➡️ <strong>
+          <a href="https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${p.id}" target="_blank">
+            ${p.siglaTipo} ${p.numero}/${p.ano}
+          </a>
+        </strong><br>
+        ${p.ementa || "Sem ementa"}<br>
+        <div class="resultado"><strong>Resultado:</strong> ${resultado}</div>
+        ${resumoVotos ? `<div class="votos">${resumoVotos}</div>` : ""}
+      `;
+      containerProps.appendChild(pHtml);
+    });
   }
+
+  cacheProposicoes[ev.id] = box.innerHTML;
+  destacarPalavra(ev.id);
 }
 
 /* =====================
    BUSCA DE TEXTO
 ===================== */
 function aplicarBusca() {
-  const termo = buscaGeral.value.trim();
-  const regex = termo ? new RegExp(`(${termo})`, "gi") : null;
-
+  const termo = buscaGeral.value.trim().toLowerCase();
   document.querySelectorAll(".evento").forEach(sessao => {
     const detalhe = sessao.querySelector(".detalhe");
-    const props = cacheProposicoes[sessao.id.replace("sessao-", "")] || [];
+    const textoSessao = sessao.querySelector("strong").innerText.toLowerCase();
+    const contem = textoSessao.includes(termo);
 
-    // sinalização inicial
-    const span = sessao.querySelector(".palavraEncontrada");
-    let encontrado = false;
+    // Sempre mostra todas as sessões
+    sessao.style.display = "";
 
-    if (termo && termo.length > 0) {
-      for (const p of props) {
-        const texto = (p.ementa || "").toLowerCase() + " " + (p.descricao || "").toLowerCase();
-        if (texto.includes(termo.toLowerCase())) {
-          encontrado = true;
-          break;
-        }
+    // Sinalização inicial
+    const sinal = sessao.querySelector(".sinaliza");
+    if (termo && cacheProposicoes[sessao.id.replace('sessao-', '')]) {
+      const conteudo = cacheProposicoes[sessao.id.replace('sessao-', '')].toLowerCase();
+      sinal.innerText = conteudo.includes(termo) ? " 🔍 Palavra encontrada" : "";
+    } else {
+      sinal.innerText = "";
+    }
+
+    // Destaca ao abrir a sessão
+    destacarPalavra(sessao.id.replace('sessao-', ''));
+  });
+}
+
+function destacarPalavra(sessaoId) {
+  const termo = buscaGeral.value.trim();
+  if (!termo) return;
+  const detalhe = document.getElementById(`det-${sessaoId}`);
+  if (!detalhe) return;
+
+  const regex = new RegExp(`(${termo})`, "gi");
+
+  detalhe.querySelectorAll(".proposicao").forEach(p => {
+    const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT, null, false);
+    let node;
+    const nodesToReplace = [];
+    while (node = walker.nextNode()) {
+      if (node.nodeValue.toLowerCase().includes(termo.toLowerCase())) {
+        nodesToReplace.push(node);
       }
     }
-
-    span.style.display = encontrado ? "" : "none";
-
-    // destaque dentro da sessão aberta
-    if (detalhe && termo && termo.length > 0 && detalhe.dataset.carregado) {
-      detalhe.querySelectorAll(".proposicao").forEach(p => {
-        const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT, null, false);
-        let node;
-        const nodesToReplace = [];
-        while (node = walker.nextNode()) {
-          if (node.nodeValue.toLowerCase().includes(termo.toLowerCase())) {
-            nodesToReplace.push(node);
-          }
-        }
-        nodesToReplace.forEach(textNode => {
-          const span = document.createElement('span');
-          span.innerHTML = textNode.nodeValue.replace(regex, '<span class="highlight">$1</span>');
-          textNode.parentNode.replaceChild(span, textNode);
-        });
-      });
-    }
+    nodesToReplace.forEach(textNode => {
+      const span = document.createElement('span');
+      span.innerHTML = textNode.nodeValue.replace(regex, '<span class="highlight">$1</span>');
+      textNode.parentNode.replaceChild(span, textNode);
+    });
   });
 }
 
 buscaGeral.addEventListener("input", aplicarBusca);
-
-/* =====================
-   EVENTOS
-===================== */
 seletorPeriodo.addEventListener("change", carregarSessoes);
 
 /* Inicial */
 carregarSessoes();
+
 </script>
 
 </body>
