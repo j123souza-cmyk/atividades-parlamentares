@@ -50,6 +50,12 @@ select, input {
   font-weight: bold;
   color: red;
 }
+
+.found {
+  margin-bottom: 10px;
+  font-weight: bold;
+  color: green;
+}
 </style>
 </head>
 
@@ -185,6 +191,8 @@ async function carregarDetalhes(ev, votacoes, box, blocoSessao) {
   box.innerHTML = html;
 
   const containerProps = box.querySelector(".lista-props");
+  const termo = buscaGeral.value.trim();
+  let encontrou = false;
 
   for (const v of votacoes) {
     const resp = await fetch(`${BASE}/votacoes/${v.id}`);
@@ -196,17 +204,21 @@ async function carregarDetalhes(ev, votacoes, box, blocoSessao) {
     const resumoVotos = voto.resumoVotacao || "";
 
     voto.proposicoesAfetadas.forEach(p => {
-      const pHtml = document.createElement("div");
-      pHtml.className = "proposicao";
-
-      // pega termo de busca
-      const termo = buscaGeral.value.trim();
       let ementa = p.ementa || "Sem ementa";
+
+      // verifica se termo existe na ementa
+      let encontradoNoTexto = false;
       if (termo) {
         const regex = new RegExp(`(${termo})`, "gi");
-        ementa = ementa.replace(regex, '<span class="highlight">$1</span>');
+        if (regex.test(ementa)) {
+          encontradoNoTexto = true;
+          ementa = ementa.replace(regex, '<span class="highlight">$1</span>');
+          encontrou = true;
+        }
       }
 
+      const pHtml = document.createElement("div");
+      pHtml.className = "proposicao";
       pHtml.innerHTML = `
         ➡️ <strong>
           <a href="https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${p.id}"
@@ -220,6 +232,14 @@ async function carregarDetalhes(ev, votacoes, box, blocoSessao) {
       `;
       containerProps.appendChild(pHtml);
     });
+  }
+
+  // se encontrou termo, adiciona sinalização
+  if (termo && encontrou) {
+    const aviso = document.createElement("div");
+    aviso.className = "found";
+    aviso.innerText = `🔍 Palavra "${termo}" encontrada nesta sessão!`;
+    box.insertBefore(aviso, containerProps);
   }
 
   box.dataset.carregado = "1";
