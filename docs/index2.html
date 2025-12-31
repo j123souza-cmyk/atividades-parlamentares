@@ -6,60 +6,20 @@
 
 <style>
 body { font-family: Arial, sans-serif; margin: 20px; }
-
-#controles {
-  margin-bottom: 15px;
-  display: flex;
-  gap: 20px;
-  align-items: center;
-}
-
-select, input {
-  padding: 6px;
-  font-size: 14px;
-}
-
-.evento {
-  padding: 10px;
-  border-bottom: 1px solid #ccc;
-  cursor: pointer;
-  position: relative;
-}
-
+#controles { margin-bottom: 15px; display: flex; gap: 20px; align-items: center; }
+select, input { padding: 6px; font-size: 14px; }
+.evento { padding: 10px; border-bottom: 1px solid #ccc; cursor: pointer; }
 .evento:hover { background: #f2f2f2; }
-
-.detalhe {
-  margin-top: 8px;
-  padding: 10px;
-  background: #fafafa;
-  border-left: 3px solid #005ea8;
-}
-
+.detalhe { margin-top: 8px; padding: 10px; background: #fafafa; border-left: 3px solid #005ea8; }
 .oculto { display: none; }
-
 #status { font-weight: bold; margin-bottom: 10px; }
-
 .proposicao { margin-bottom: 14px; }
-
 .resultado { font-style: italic; margin: 4px 0; }
-
 .votos { font-weight: bold; margin-top: 4px; }
-
 .video { margin: 8px 0; }
-
-.highlight {
-  font-weight: bold;
-  color: red;
-}
-
-.aviso-palavra {
-  color: green;
-  font-weight: bold;
-  margin-left: 10px;
-}
+.highlight { font-weight: bold; color: red; }
 </style>
 </head>
-
 <body>
 
 <h2>Últimas Sessões do Plenário</h2>
@@ -72,8 +32,7 @@ select, input {
       <option value="6">Últimos 6 meses</option>
     </select>
   </div>
-
-  <div class="busca" style="flex:1;">
+  <div style="flex:1;">
     🔎 <input type="text" id="buscaGeral" placeholder="Buscar texto nas sessões…" />
   </div>
 </div>
@@ -88,74 +47,92 @@ const lista = document.getElementById("lista");
 const seletorPeriodo = document.getElementById("periodo");
 const buscaGeral = document.getElementById("buscaGeral");
 
+let sessoesMap = {}; // Guarda todas as proposições carregadas de cada sessão
+
 /* =====================
    BUSCAR SESSÕES
 ===================== */
 async function carregarSessoes() {
   lista.innerHTML = "";
   status.innerText = "Carregando sessões…";
+  sessoesMap = {};
 
   const meses = parseInt(seletorPeriodo.value);
   const fim = new Date();
   const inicio = new Date();
   inicio.setMonth(fim.getMonth() - meses);
 
-  const dataInicio = inicio.toISOString().slice(0, 10);
-  const dataFim = fim.toISOString().slice(0, 10);
+  const dataInicio = inicio.toISOString().slice(0,10);
+  const dataFim = fim.toISOString().slice(0,10);
 
   let pagina = 1;
   let sessoes = [];
   let continuar = true;
 
   while (continuar) {
-    const resp = await fetch(
-      `${BASE}/eventos?dataInicio=${dataInicio}&dataFim=${dataFim}` +
-      `&ordenarPor=dataHoraInicio&ordem=DESC&pagina=${pagina}&itens=100`
-    );
+    const resp = await fetch(`${BASE}/eventos?dataInicio=${dataInicio}&dataFim=${dataFim}&ordenarPor=dataHoraInicio&ordem=DESC&pagina=${pagina}&itens=100`);
     const json = await resp.json();
     const dados = json.dados || [];
-
     if (!dados.length) break;
 
     for (const ev of dados) {
-      const texto = ((ev.titulo || "") + (ev.descricao || "")).toLowerCase();
-      if (
-        texto.includes("sessão") &&
-        !texto.includes("audiência") &&
-        !texto.includes("mesa") &&
-        !texto.includes("seminário")
-      ) {
+      const texto = ((ev.titulo||"") + (ev.descricao||"")).toLowerCase();
+      if (texto.includes("sessão") && !texto.includes("audiência") && !texto.includes("mesa") && !texto.includes("seminário")) {
         sessoes.push(ev);
       }
     }
     pagina++;
   }
 
-  status.innerText = sessoes.length
-    ? `Sessões encontradas: ${sessoes.length}`
-    : "Nenhuma sessão encontrada.";
+  status.innerText = sessoes.length ? `Sessões encontradas: ${sessoes.length}` : "Nenhuma sessão encontrada.";
 
-  sessoes.forEach(criarSessao);
-  aplicarBusca(); // aplica busca imediatamente caso já tenha texto digitado
+  // Criar cada sessão e carregar proposições em background
+  for (const ev of sessoes) {
+    criarSessao(ev);
+    carregarProposicoes(ev); 
+  }
+
+  aplicarBusca(); // Aplica destaque imediato se já houver texto no campo
 }
 
 /* =====================
-   LISTAGEM
+   CRIAR SESSÃO
 ===================== */
 function criarSessao(ev) {
   const div = document.createElement("div");
   div.className = "evento";
   div.id = `sessao-${ev.id}`;
-
   div.innerHTML = `
-    <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong>
-    <span class="aviso-palavra"></span><br>
+    <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong><br>
     Sessão do Plenário
     <div id="det-${ev.id}" class="detalhe oculto"></div>
   `;
-
   div.onclick = () => abrirSessao(ev, div);
   lista.appendChild(div);
+}
+
+/* =====================
+   CARREGAR PROPOSIÇÕES EM BACKGROUND
+===================== */
+async function carregarProposicoes(ev) {
+  const resp = await fetch(`${BASE}/eventos/${ev.id}/votacoes`);
+  const votacoes = (await resp.json()).dados || [];
+  let proposicoes = [];
+
+  for (const v of votacoes) {
+    const respV = await fetch(`${BASE}/votacoes/${v.id}`);
+    const d = await respV.json();
+    const voto = d.dados;
+    if (!voto?.proposicoesAfetadas) continue;
+    proposicoes.push(...voto.proposicoesAfetadas.map(p => ({
+      ...p,
+      resultado: voto.resultado || voto.descricao || "Resultado não informado",
+      resumoVotos: voto.resumoVotacao || ""
+    })));
+  }
+
+  sessoesMap[ev.id] = proposicoes;
+  aplicarBusca(); // Atualiza sinalização de palavra encontrada se já houver texto
 }
 
 /* =====================
@@ -164,21 +141,9 @@ function criarSessao(ev) {
 function abrirSessao(ev, bloco) {
   const box = document.getElementById(`det-${ev.id}`);
   box.classList.toggle("oculto");
-
   if (box.dataset.carregado) return;
 
-  box.innerHTML = "Carregando votações…";
-
-  fetch(`${BASE}/eventos/${ev.id}/votacoes`)
-    .then(r => r.json())
-    .then(res => carregarDetalhes(ev, res.dados || [], box, bloco))
-    .catch(() => box.innerText = "Erro ao carregar votações.");
-}
-
-/* =====================
-   DETALHES COM VOTAÇÕES
-===================== */
-async function carregarDetalhes(ev, votacoes, box, blocoSessao) {
+  const proposicoes = sessoesMap[ev.id] || [];
   let html = `
     <strong>Sessão para votação de propostas legislativas</strong><br><br>
     <strong>Local:</strong> Plenário da Câmara dos Deputados<br>
@@ -194,36 +159,29 @@ async function carregarDetalhes(ev, votacoes, box, blocoSessao) {
   box.innerHTML = html;
 
   const containerProps = box.querySelector(".lista-props");
+  const termo = buscaGeral.value.trim();
+  const regex = termo ? new RegExp(`(${termo})`, "gi") : null;
 
-  for (const v of votacoes) {
-    const resp = await fetch(`${BASE}/votacoes/${v.id}`);
-    const d = await resp.json();
-    const voto = d.dados;
-    if (!voto?.proposicoesAfetadas) continue;
+  for (const p of proposicoes) {
+    let ementa = p.ementa || "Sem ementa";
+    if (regex) ementa = ementa.replace(regex, '<span class="highlight">$1</span>');
 
-    const resultado = voto.resultado || voto.descricao || "Resultado não informado";
-    const resumoVotos = voto.resumoVotacao || "";
-
-    voto.proposicoesAfetadas.forEach(p => {
-      const pHtml = document.createElement("div");
-      pHtml.className = "proposicao";
-      pHtml.innerHTML = `
-        ➡️ <strong>
-          <a href="https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${p.id}"
-             target="_blank">
-            ${p.siglaTipo} ${p.numero}/${p.ano}
-          </a>
-        </strong><br>
-        ${p.ementa || "Sem ementa"}<br>
-        <div class="resultado"><strong>Resultado:</strong> ${resultado}</div>
-        ${resumoVotos ? `<div class="votos">${resumoVotos}</div>` : ""}
-      `;
-      containerProps.appendChild(pHtml);
-    });
+    const pHtml = document.createElement("div");
+    pHtml.className = "proposicao";
+    pHtml.innerHTML = `
+      ➡️ <strong>
+        <a href="https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${p.id}" target="_blank">
+          ${p.siglaTipo} ${p.numero}/${p.ano}
+        </a>
+      </strong><br>
+      ${ementa}<br>
+      <div class="resultado"><strong>Resultado:</strong> ${p.resultado}</div>
+      ${p.resumoVotos ? `<div class="votos">${p.resumoVotos}</div>` : ""}
+    `;
+    containerProps.appendChild(pHtml);
   }
 
   box.dataset.carregado = "1";
-  aplicarBusca(); // reaplica destaque após abrir sessão
 }
 
 /* =====================
@@ -234,48 +192,32 @@ function aplicarBusca() {
   if (!termo) {
     document.querySelectorAll(".evento").forEach(sessao => {
       sessao.style.display = "";
-      sessao.querySelector(".aviso-palavra").innerText = "";
+      const strong = sessao.querySelector("strong");
+      strong.innerHTML = strong.innerText.replace(/ 🔍 Palavra encontrada/gi, '');
     });
     return;
   }
 
   document.querySelectorAll(".evento").forEach(sessao => {
-    const detalhe = sessao.querySelector(".detalhe");
-    let encontrou = false;
+    const strong = sessao.querySelector("strong");
+    const proposicoes = sessoesMap[sessao.id.replace("sessao-","")] || [];
+    const encontrou = proposicoes.some(p =>
+      (p.ementa || "").toLowerCase().includes(termo) ||
+      (p.resultado || "").toLowerCase().includes(termo)
+    );
 
-    if (detalhe.dataset.carregado) {
-      detalhe.querySelectorAll(".proposicao").forEach(p => {
-        if (p.innerText.toLowerCase().includes(termo)) encontrou = true;
-        // Remove destaques antigos
-        p.querySelectorAll(".highlight").forEach(h => {
-          const parent = h.parentNode;
-          parent.replaceChild(document.createTextNode(h.innerText), h);
-          parent.normalize();
-        });
-        // Aplica destaque novo
-        const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT, null, false);
-        let node;
-        while (node = walker.nextNode()) {
-          if (node.nodeValue.toLowerCase().includes(termo)) {
-            const span = document.createElement('span');
-            const regex = new RegExp(`(${termo})`, "gi");
-            span.innerHTML = node.nodeValue.replace(regex, '<span class="highlight">$1</span>');
-            node.parentNode.replaceChild(span, node);
-          }
-        }
-      });
+    if (encontrou) {
+      strong.innerHTML = `${strong.innerText.replace(/ 🔍 Palavra encontrada/gi,'')} 🔍 Palavra encontrada`;
+    } else {
+      strong.innerHTML = strong.innerText.replace(/ 🔍 Palavra encontrada/gi,'');
     }
-
-    // Atualiza aviso na listagem
-    sessao.querySelector(".aviso-palavra").innerText = encontrou ? "🔍 Palavra encontrada" : "";
   });
 }
-
-buscaGeral.addEventListener("input", aplicarBusca);
 
 /* =====================
    EVENTOS
 ===================== */
+buscaGeral.addEventListener("input", aplicarBusca);
 seletorPeriodo.addEventListener("change", carregarSessoes);
 
 /* Inicial */
