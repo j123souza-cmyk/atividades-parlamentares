@@ -127,7 +127,8 @@ async function carregarSessoes() {
               ano: p.ano,
               ementa: p.ementa || "Sem ementa",
               resultado: voto.resultado || voto.descricao || "Resultado não informado",
-              resumoVotos: voto.resumoVotacao || ""
+              resumoVotos: voto.resumoVotacao || "",
+              textoOriginal: `${p.tipo} ${p.numero}/${p.ano} ${p.ementa} ${voto.resultado || ""} ${voto.resumoVotacao || ""}`
             });
           });
         } catch(e) { console.error("Erro detalhamento:", e); }
@@ -184,6 +185,7 @@ function exibirSessao(sessaoId) {
   mem.proposicoes.forEach(p => {
     const pHtml = document.createElement("div");
     pHtml.className = "proposicao";
+    pHtml.dataset.textoOriginal = p.textoOriginal; // guarda original para busca
     pHtml.innerHTML = `
       ➡️ <strong>
         <a href="https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${p.id}" target="_blank">
@@ -220,8 +222,7 @@ buscaGeral.addEventListener("input", () => {
       if (textoSessao.includes(termoLower)) encontrou = true;
 
       mem.proposicoes.forEach(p => {
-        const textoP = (p.ementa + " " + p.tipo + p.numero + "/" + p.ano + " " + p.resultado + " " + (p.resumoVotos||"")).toLowerCase();
-        if (textoP.includes(termoLower)) encontrou = true;
+        if (p.textoOriginal.toLowerCase().includes(termoLower)) encontrou = true;
       });
     }
 
@@ -231,9 +232,9 @@ buscaGeral.addEventListener("input", () => {
     if (encontrou && termo) {
       detalhe.classList.remove("oculto");
       detalhe.querySelectorAll(".proposicao, .resultado, .votos, .video, strong, a").forEach(el => {
-        const texto = el.textContent;
+        const original = el.dataset.textoOriginal || el.textContent;
         const regex = new RegExp(`(${termo})`, "gi");
-        el.innerHTML = texto.replace(regex, "<strong>$1</strong>");
+        el.innerHTML = original.replace(regex, "<strong>$1</strong>");
       });
     } else if (!termo) {
       detalhe.classList.add("oculto");
