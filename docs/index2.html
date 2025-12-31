@@ -127,6 +127,9 @@ async function carregarSessoes() {
     pagina++;
   }
 
+  // Ordena sessões em ordem decrescente (mais recente primeiro)
+  sessoes.sort((a, b) => new Date(b.dataHoraInicio) - new Date(a.dataHoraInicio));
+
   sessoesTotais = sessoes.length;
   sessoesCarregadas = 0;
 
@@ -134,14 +137,16 @@ async function carregarSessoes() {
     ? `Sessões encontradas: ${sessoesTotais}`
     : "Nenhuma sessão encontrada.";
 
-  // Criar lista inicial de sessões com sinalização
-  sessoes.forEach(criarSessao);
+  // Criar lista inicial de sessões com sinalização de carregamento
+  sessoes.forEach(ev => {
+    criarSessao(ev);
+    atualizarSinalizacao(ev.id, true); // todas começam com sinalização
+  });
 
   // Pré-carregar proposições de todas as sessões
   for (const ev of sessoes) {
-    atualizarSinalizacao(ev.id, true);
     await preCarregarProposicoes(ev);
-    atualizarSinalizacao(ev.id, false);
+    atualizarSinalizacao(ev.id, false); // remove sinal após carregar
     sessoesCarregadas++;
     contador.innerText = `Carregando ${sessoesCarregadas}/${sessoesTotais} sessões...`;
   }
