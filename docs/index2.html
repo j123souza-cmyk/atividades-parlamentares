@@ -53,8 +53,7 @@ const lista = document.getElementById("lista");
 const seletorPeriodo = document.getElementById("periodo");
 const buscaGeral = document.getElementById("buscaGeral");
 
-// cache das proposições
-const cacheProposicoes = {};
+let cacheProposicoes = {};
 
 // ===================== BUSCAR SESSÕES =====================
 async function carregarSessoes() {
@@ -101,13 +100,11 @@ async function carregarSessoes() {
     ? `Sessões encontradas: ${sessoes.length}`
     : "Nenhuma sessão encontrada.";
 
-  // cria sessões e já pré-carrega as proposições
-  await Promise.all(sessoes.map(async ev => {
-    criarSessao(ev);
-    await preCarregarProposicoes(ev);
-  }));
+  // criar sessões imediatamente
+  sessoes.forEach(ev => criarSessao(ev));
 
-  aplicarBusca();
+  // pré-carregar proposições em segundo plano
+  sessoes.forEach(ev => preCarregarProposicoes(ev));
 }
 
 // ===================== LISTAGEM =====================
@@ -140,6 +137,9 @@ async function preCarregarProposicoes(ev) {
     }
 
     cacheProposicoes[ev.id] = props;
+
+    // atualizar sinalização se termo de busca já estiver digitado
+    if (buscaGeral.value.trim()) aplicarBusca();
   } catch (e) {
     console.error("Erro ao pré-carregar proposições da sessão", ev.id, e);
   }
@@ -149,10 +149,7 @@ async function preCarregarProposicoes(ev) {
 function abrirSessao(ev, bloco) {
   const box = document.getElementById(`det-${ev.id}`);
   box.classList.toggle("oculto");
-
-  if (box.dataset.carregado) return carregarDetalhesSessao(ev, box);
-
-  carregarDetalhesSessao(ev, box);
+  if (!box.dataset.carregado) carregarDetalhesSessao(ev, box);
 }
 
 // ===================== DETALHES =====================
@@ -201,17 +198,6 @@ function carregarDetalhesSessao(ev, box) {
   });
 
   box.dataset.carregado = "1";
-
-  // se houver termo de busca e encontrado na sessão
-  if (termo) {
-    const encontrou = props.some(p => {
-      const texto = (p.ementa || "").toLowerCase() + " " + (p.descricao || "").toLowerCase();
-      return texto.includes(termo.toLowerCase());
-    });
-    const sinal = document.getElementById(`sinal-${ev.id}`);
-    if (encontrou) sinal.innerText = `🔍 Palavra encontrada`;
-    else sinal.innerText = "";
-  }
 }
 
 // ===================== BUSCA DE TEXTO =====================
@@ -238,7 +224,6 @@ function aplicarBusca() {
 buscaGeral.addEventListener("input", aplicarBusca);
 seletorPeriodo.addEventListener("change", carregarSessoes);
 
-// ===================== INICIAL =====================
 carregarSessoes();
 </script>
 
