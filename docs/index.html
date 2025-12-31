@@ -61,12 +61,7 @@
       font-weight: bold;
     }
 
-    h3 { margin-top: 16px; }
-
-    #proposicoesApresentadas div,
-    #proposicoesVotadas div {
-      margin-bottom: 6px;
-    }
+    .secao-lista { margin-bottom: 20px; }
   </style>
 </head>
 <body>
@@ -85,11 +80,9 @@
 
   <div class="filtros">
     <input type="text" id="filtroNome" placeholder="Filtrar por nome" oninput="aplicarFiltros()">
-
     <select id="filtroPartido" onchange="aplicarFiltros()">
       <option value="">Partido</option>
     </select>
-
     <select id="filtroUf" onchange="aplicarFiltros()">
       <option value="">UF</option>
     </select>
@@ -148,11 +141,17 @@
   <p class="presenca" id="presencaTexto"></p>
   <canvas id="grafico" width="440" height="300"></canvas>
 
-  <h3>Proposições apresentadas (último ano)</h3>
-  <div id="proposicoesApresentadas"></div>
+  <div class="secao-lista">
+    <h3>Proposições apresentadas (último ano)</h3>
+    <p id="totalApresentadas"></p>
+    <div id="proposicoesApresentadas"></div>
+  </div>
 
-  <h3>Proposições votadas (último ano)</h3>
-  <div id="proposicoesVotadas"></div>
+  <div class="secao-lista">
+    <h3>Proposições votadas (último ano)</h3>
+    <p id="totalVotadas"></p>
+    <div id="proposicoesVotadas"></div>
+  </div>
 </section>
 
 <script>
@@ -171,11 +170,9 @@ fetch(`${BASE}/deputados?ordem=ASC&ordenarPor=nome`)
   .then(r => r.json())
   .then(json => {
     const statusEl = document.getElementById('status');
-    if (statusEl) statusEl.remove();
-
+    if(statusEl) statusEl.remove();
     deputados = json.dados;
     deputadosFiltrados = deputados;
-
     preencherFiltros(deputados);
     renderizarLista(deputados);
   });
@@ -230,58 +227,55 @@ async function abrirDetalhe(dep) {
   presencaTexto.innerText = `Presença no plenário: ${presenca}%`;
   desenharGrafico(totalEventos, plenarios);
 
-  // Limpar áreas antigas
-  proposicoesApresentadas.innerHTML = "Carregando proposições apresentadas...";
-  proposicoesVotadas.innerHTML = "Carregando proposições votadas...";
+  // Proposições apresentadas
+  const anoAtual = new Date().getFullYear();
+  const respProps = await fetch(`${BASE}/proposicoes?autorId=${dep.id}&itens=1000`);
+  const props = (await respProps.json()).dados || [];
+  const propsUltimoAno = props.filter(p => parseInt(p.ano) >= anoAtual - 1);
+  totalApresentadas.innerText = `Total: ${propsUltimoAno.length}`;
+  proposicoesApresentadas.innerHTML = "";
+  propsUltimoAno.forEach(p => {
+    proposicoesApresentadas.innerHTML += `
+      <div>
+        <a href="https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${p.id}" target="_blank">
+          ${p.siglaTipo} ${p.numero}/${p.ano}
+        </a> - ${p.ementa || 'Sem ementa'}
+      </div>`;
+  });
 
-  // Período do último ano
-  const fim = new Date();
-  const inicio = new Date();
-  inicio.setFullYear(fim.getFullYear() - 1);
-  const dataInicio = inicio.toISOString().slice(0,10);
-  const dataFim = fim.toISOString().slice(0,10);
+  // Proposições votadas
+  const inicioAno = `${anoAtual-1}-01-01`;
+  const fimAno = `${anoAtual}-12-31`;
+  const respVot = await fetch(`${BASE}/votacoes?dataInicio=${inicioAno}&dataFim=${fimAno}&itens=1000`);
+  const votacoes = (await respVot.json()).dados || [];
+  const votacoesDeputado = [];
 
-  // 1️⃣ Proposições apresentadas no último ano
-  try {
-    const resp = await fetch(`${BASE}/deputados/${dep.id}/proposicoes?dataInicio=${dataInicio}&dataFim=${dataFim}&itens=1000`);
-    const props = (await resp.json()).dados || [];
-    proposicoesApresentadas.innerHTML = `<p>Total: ${props.length}</p>`;
-    if (props.length > 0) {
-      proposicoesApresentadas.innerHTML += props.map(p => `
-        <div>
-          <strong>${p.siglaTipo} ${p.numero}/${p.ano}</strong> - ${p.ementa || "Sem ementa"}
-        </div>
-      `).join("");
+  for(const v of votacoes){
+    const r = await fetch(`${BASE}/votacoes/${v.id}`);
+    const dVot = (await r.json()).dados;
+    const votoDeputado = (dVot.deputadosVotos || []).find(dv => dv.deputadoId == dep.id);
+    if(votoDeputado){
+      (dVot.proposicoesAfetadas || []).forEach(p => {
+        votacoesDeputado.push({
+          siglaTipo: p.siglaTipo,
+          numero: p.numero,
+          ano: p.ano,
+          voto: votoDeputado.tipoVoto
+        });
+      });
     }
-  } catch {
-    proposicoesApresentadas.innerText = "Erro ao carregar proposições apresentadas.";
   }
 
-  // 2️⃣ Proposições votadas no último ano
-  try {
-    const respVot = await fetch(`${BASE}/deputados/${dep.id}/votacoes?dataInicio=${dataInicio}&dataFim=${dataFim}&itens=1000`);
-    const votacoes = (await respVot.json()).dados || [];
-    proposicoesVotadas.innerHTML = `<p>Total: ${votacoes.length}</p>`;
-    if (votacoes.length > 0) {
-      const listaVot = await Promise.all(votacoes.map(async v => {
-        const r = await fetch(`${BASE}/votacoes/${v.id}`);
-        const dadosVot = (await r.json()).dados;
-        if (!dadosVot.proposicoesAfetadas) return null;
-
-        const votoDeputado = (dadosVot.deputadosVotos || []).find(dv => dv.deputadoId == dep.id);
-        const votoTexto = votoDeputado ? votoDeputado.tipoVoto : "Não registrado";
-
-        return dadosVot.proposicoesAfetadas.map(p => `
-          <div>
-            <strong>${p.siglaTipo} ${p.numero}/${p.ano}</strong> - Voto: ${votoTexto}
-          </div>
-        `).join("");
-      }));
-      proposicoesVotadas.innerHTML += listaVot.filter(Boolean).join("");
-    }
-  } catch {
-    proposicoesVotadas.innerText = "Erro ao carregar votações.";
-  }
+  totalVotadas.innerText = `Total: ${votacoesDeputado.length}`;
+  proposicoesVotadas.innerHTML = "";
+  votacoesDeputado.forEach(p => {
+    proposicoesVotadas.innerHTML += `
+      <div>
+        <a href="https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${p.id}" target="_blank">
+          ${p.siglaTipo} ${p.numero}/${p.ano}
+        </a> - Voto: ${p.voto}
+      </div>`;
+  });
 }
 
 /* CÁLCULO DE PRESENÇA */
@@ -294,9 +288,7 @@ async function calcularPresenca(dep) {
   const df = fim.toISOString().slice(0,10);
 
   try {
-    const r = await fetch(
-      `${BASE}/deputados/${dep.id}/eventos?dataInicio=${di}&dataFim=${df}&itens=1000`
-    );
+    const r = await fetch(`${BASE}/deputados/${dep.id}/eventos?dataInicio=${di}&dataFim=${df}&itens=1000`);
     const j = await r.json();
     const eventos = j.dados || [];
 
@@ -340,13 +332,8 @@ async function gerarRankingPresenca() {
     });
   }
 
-  const maior = [...resultados]
-    .sort((a,b) => b.presenca - a.presenca)
-    .slice(0,20);
-
-  const menor = [...resultados]
-    .sort((a,b) => a.presenca - b.presenca)
-    .slice(0,20);
+  const maior = [...resultados].sort((a,b) => b.presenca - a.presenca).slice(0,20);
+  const menor = [...resultados].sort((a,b) => a.presenca - b.presenca).slice(0,20);
 
   maior.forEach((d,i) => {
     rankingMaior.innerHTML += `
