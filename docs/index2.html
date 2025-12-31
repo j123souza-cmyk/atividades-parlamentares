@@ -19,10 +19,6 @@ select, input, button {
   font-size: 14px;
 }
 
-button {
-  cursor: pointer;
-}
-
 .evento {
   padding: 10px;
   border-bottom: 1px solid #ccc;
@@ -71,9 +67,8 @@ button {
   </div>
 
   <div style="flex:1;">
-    🔎 
-    <input type="text" id="buscaGeral" placeholder="Buscar texto nas sessões…" />
-    <button id="btnBusca">Pesquisar</button>
+    🔎 <input type="text" id="buscaGeral" placeholder="Palavra para pesquisar…" />
+    <button id="btnPesquisar">Pesquisar</button>
   </div>
 </div>
 
@@ -86,10 +81,9 @@ const status = document.getElementById("status");
 const lista = document.getElementById("lista");
 const seletorPeriodo = document.getElementById("periodo");
 const buscaGeral = document.getElementById("buscaGeral");
-const btnBusca = document.getElementById("btnBusca");
+const btnPesquisar = document.getElementById("btnPesquisar");
 
-// Cache para proposições carregadas
-const cacheProposicoes = {};
+const cacheProposicoes = {}; // todas as proposições carregadas
 
 /* =====================
    BUSCAR SESSÕES
@@ -103,39 +97,35 @@ async function carregarSessoes() {
   const inicio = new Date();
   inicio.setMonth(fim.getMonth() - meses);
 
-  const dataInicio = inicio.toISOString().slice(0, 10);
-  const dataFim = fim.toISOString().slice(0, 10);
+  const dataInicio = inicio.toISOString().slice(0,10);
+  const dataFim = fim.toISOString().slice(0,10);
 
   let pagina = 1;
   let sessoes = [];
   let continuar = true;
 
-  while (continuar) {
-    const resp = await fetch(
-      `${BASE}/eventos?dataInicio=${dataInicio}&dataFim=${dataFim}` +
-      `&ordenarPor=dataHoraInicio&ordem=DESC&pagina=${pagina}&itens=100`
-    );
+  while(continuar) {
+    const resp = await fetch(`${BASE}/eventos?dataInicio=${dataInicio}&dataFim=${dataFim}&ordenarPor=dataHoraInicio&ordem=DESC&pagina=${pagina}&itens=100`);
     const json = await resp.json();
     const dados = json.dados || [];
-    if (!dados.length) break;
+    if(!dados.length) break;
 
-    for (const ev of dados) {
+    for(const ev of dados) {
       const texto = ((ev.titulo || "") + (ev.descricao || "")).toLowerCase();
-      if (texto.includes("sessão") &&
-          !texto.includes("audiência") &&
-          !texto.includes("mesa") &&
-          !texto.includes("seminário")) {
+      if(texto.includes("sessão") && !texto.includes("audiência") && !texto.includes("mesa") && !texto.includes("seminário")) {
         sessoes.push(ev);
       }
     }
     pagina++;
   }
 
-  status.innerText = sessoes.length
-    ? `Sessões encontradas: ${sessoes.length}`
-    : "Nenhuma sessão encontrada.";
+  status.innerText = sessoes.length ? `Sessões encontradas: ${sessoes.length}` : "Nenhuma sessão encontrada.";
 
-  sessoes.forEach(criarSessao);
+  // cria sessões e já dispara carregamento das proposições em segundo plano
+  for(const ev of sessoes) {
+    criarSessao(ev);
+    carregarProposicoes(ev);
+  }
 }
 
 /* =====================
@@ -145,13 +135,11 @@ function criarSessao(ev) {
   const div = document.createElement("div");
   div.className = "evento";
   div.id = `sessao-${ev.id}`;
-
   div.innerHTML = `
     <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong><span class="sinaliza"></span><br>
     Sessão do Plenário
     <div id="det-${ev.id}" class="detalhe oculto"></div>
   `;
-
   div.onclick = () => abrirSessao(ev, div);
   lista.appendChild(div);
 }
@@ -162,48 +150,43 @@ function criarSessao(ev) {
 function abrirSessao(ev, bloco) {
   const box = document.getElementById(`det-${ev.id}`);
   box.classList.toggle("oculto");
-
-  if (cacheProposicoes[ev.id]) {
+  if(cacheProposicoes[ev.id]) {
     box.innerHTML = cacheProposicoes[ev.id];
     destacarPalavra(ev.id);
-    return;
+  } else {
+    box.innerHTML = "Carregando votações…";
   }
-
-  box.innerHTML = "Carregando votações…";
-
-  fetch(`${BASE}/eventos/${ev.id}/votacoes`)
-    .then(r => r.json())
-    .then(res => carregarDetalhes(ev, res.dados || [], box))
-    .catch(() => box.innerText = "Erro ao carregar votações.");
 }
 
 /* =====================
-   CARREGAR DETALHES
+   CARREGAR PROPOSIÇÕES
 ===================== */
-async function carregarDetalhes(ev, votacoes, box) {
+async function carregarProposicoes(ev) {
+  const box = document.getElementById(`det-${ev.id}`);
   let html = `
     <strong>Sessão para votação de propostas legislativas</strong><br><br>
     <strong>Local:</strong> Plenário da Câmara dos Deputados<br>
     <strong>Início:</strong> ${new Date(ev.dataHoraInicio).toLocaleString()}<br>
   `;
-
-  if (ev.urlRegistro || ev.urlTransmissao) {
+  if(ev.urlRegistro || ev.urlTransmissao) {
     const link = ev.urlRegistro || ev.urlTransmissao;
     html += `<div class="video">▶ <a href="${link}" target="_blank">Assistir vídeo da sessão</a></div>`;
   }
-
   html += `<div class="lista-props"></div>`;
+  const containerProps = document.createElement('div');
   box.innerHTML = html;
-  const containerProps = box.querySelector(".lista-props");
+  const listaProps = box.querySelector(".lista-props");
 
-  for (const v of votacoes) {
+  // busca votações
+  const respVotacoes = await fetch(`${BASE}/eventos/${ev.id}/votacoes`);
+  const jsonVotacoes = await respVotacoes.json();
+  const votacoes = jsonVotacoes.dados || [];
+
+  for(const v of votacoes) {
     const resp = await fetch(`${BASE}/votacoes/${v.id}`);
     const d = await resp.json();
     const voto = d.dados;
-    if (!voto?.proposicoesAfetadas) continue;
-
-    const resultado = voto.resultado || voto.descricao || "Resultado não informado";
-    const resumoVotos = voto.resumoVotacao || "";
+    if(!voto?.proposicoesAfetadas) continue;
 
     voto.proposicoesAfetadas.forEach(p => {
       const pHtml = document.createElement("div");
@@ -215,84 +198,63 @@ async function carregarDetalhes(ev, votacoes, box) {
           </a>
         </strong><br>
         ${p.ementa || "Sem ementa"}<br>
-        <div class="resultado"><strong>Resultado:</strong> ${resultado}</div>
-        ${resumoVotos ? `<div class="votos">${resumoVotos}</div>` : ""}
+        <div class="resultado"><strong>Resultado:</strong> ${voto.resultado || voto.descricao || "Resultado não informado"}</div>
+        ${voto.resumoVotacao ? `<div class="votos">${voto.resumoVotacao}</div>` : ""}
       `;
-      containerProps.appendChild(pHtml);
+      listaProps.appendChild(pHtml);
     });
   }
 
   cacheProposicoes[ev.id] = box.innerHTML;
-  destacarPalavra(ev.id);
 }
 
 /* =====================
-   BUSCA DE TEXTO
+   PESQUISAR PALAVRA
 ===================== */
-function aplicarBusca() {
+function pesquisarPalavra() {
   const termo = buscaGeral.value.trim();
-  if (!termo) {
-    // limpa sinalizações
-    document.querySelectorAll(".sinaliza").forEach(s => s.innerText = "");
-    return;
-  }
-
-  const termoLower = termo.toLowerCase();
-
-  document.querySelectorAll(".evento").forEach(sessao => {
-    const sessaoId = sessao.id.replace('sessao-', '');
-    const sinal = sessao.querySelector(".sinaliza");
-    sinal.innerText = "";
-
-    // verifica se a sessão contém a palavra
-    if (cacheProposicoes[sessaoId] && cacheProposicoes[sessaoId].toLowerCase().includes(termoLower)) {
-      sinal.innerText = " 🔍 Palavra encontrada";
-    }
-
-    // se sessão aberta, destaca dentro do conteúdo
-    const detalhe = document.getElementById(`det-${sessaoId}`);
-    if (!detalhe.classList.contains("oculto")) {
-      destacarPalavra(sessaoId);
-    }
-  });
-}
-
-function destacarPalavra(sessaoId) {
-  const termo = buscaGeral.value.trim();
-  if (!termo) return;
-  const detalhe = document.getElementById(`det-${sessaoId}`);
-  if (!detalhe) return;
-
+  if(!termo) return;
   const regex = new RegExp(`(${termo})`, "gi");
 
-  detalhe.querySelectorAll(".proposicao").forEach(p => {
-    const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT, null, false);
-    let node;
-    const nodesToReplace = [];
-    while (node = walker.nextNode()) {
-      if (node.nodeValue.toLowerCase().includes(termo.toLowerCase())) {
-        nodesToReplace.push(node);
-      }
+  document.querySelectorAll(".evento").forEach(sessao => {
+    const sinal = sessao.querySelector(".sinaliza");
+    const sessaoId = sessao.id.replace("sessao-","");
+    const conteudo = cacheProposicoes[sessaoId] ? cacheProposicoes[sessaoId].toLowerCase() : "";
+    if(conteudo.includes(termo.toLowerCase())) {
+      sinal.innerText = " 🔍 Palavra encontrada";
+    } else {
+      sinal.innerText = "";
     }
-    nodesToReplace.forEach(textNode => {
-      const span = document.createElement('span');
-      span.innerHTML = textNode.nodeValue.replace(regex, '<span class="highlight">$1</span>');
-      textNode.parentNode.replaceChild(span, textNode);
-    });
+
+    // se sessão aberta, aplica destaque
+    const detalhe = document.getElementById(`det-${sessaoId}`);
+    if(detalhe && !detalhe.classList.contains('oculto')) {
+      detalhe.querySelectorAll(".proposicao").forEach(p => {
+        const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT, null, false);
+        let node;
+        const nodesToReplace = [];
+        while(node = walker.nextNode()) {
+          if(node.nodeValue.toLowerCase().includes(termo.toLowerCase())) nodesToReplace.push(node);
+        }
+        nodesToReplace.forEach(textNode => {
+          const span = document.createElement('span');
+          span.innerHTML = textNode.nodeValue.replace(regex,'<span class="highlight">$1</span>');
+          textNode.parentNode.replaceChild(span,textNode);
+        });
+      });
+    }
   });
 }
 
-// ativar busca somente ao clicar
-btnBusca.addEventListener("click", aplicarBusca);
-buscaGeral.addEventListener("keypress", (e) => {
-  if (e.key === "Enter") aplicarBusca();
-});
-
+/* =====================
+   EVENTOS
+===================== */
+btnPesquisar.addEventListener("click", pesquisarPalavra);
 seletorPeriodo.addEventListener("change", carregarSessoes);
 
 /* Inicial */
 carregarSessoes();
-</script>
 
+</script>
 </body>
 </html>
