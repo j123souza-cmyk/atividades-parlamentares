@@ -6,20 +6,24 @@
 
 <style>
 body { font-family: Arial, sans-serif; margin: 20px; }
+
 #controles { margin-bottom: 15px; display: flex; gap: 20px; align-items: center; }
 select, input { padding: 6px; font-size: 14px; }
+
 .evento { padding: 10px; border-bottom: 1px solid #ccc; cursor: pointer; }
 .evento:hover { background: #f2f2f2; }
+
 .detalhe { margin-top: 8px; padding: 10px; background: #fafafa; border-left: 3px solid #005ea8; }
 .oculto { display: none; }
+
 #status { font-weight: bold; margin-bottom: 10px; }
+
 .proposicao { margin-bottom: 14px; }
 .resultado { font-style: italic; margin: 4px 0; }
 .votos { font-weight: bold; margin-top: 4px; }
 .video { margin: 8px 0; }
-.highlight { color: blue; font-weight: bold; }
-.busca { margin-left: auto; }
-.busca input { width: 200px; }
+.busca { margin: 10px 0; width: 100%; }
+.busca input { width: 100%; box-sizing: border-box; }
 </style>
 </head>
 
@@ -35,6 +39,7 @@ select, input { padding: 6px; font-size: 14px; }
       <option value="6">Últimos 6 meses</option>
     </select>
   </div>
+
   <div class="busca">
     🔎 <input type="text" id="buscaGeral" placeholder="Buscar texto nas sessões…" />
   </div>
@@ -51,7 +56,6 @@ const seletorPeriodo = document.getElementById("periodo");
 const buscaGeral = document.getElementById("buscaGeral");
 
 let sessoesMemoria = []; // guarda sessões e proposições
-let termoAtual = "";
 
 /* =====================
    CARREGAR SESSÕES
@@ -100,7 +104,7 @@ async function carregarSessoes() {
     criarSessao(ev);
   });
 
-  // Pré-carregar proposições para busca
+  // Pré-carregar todas as proposições em background
   sessoesMemoria.forEach(async (mem) => {
     try {
       const votacoesResp = await fetch(`${BASE}/eventos/${mem.sessao.id}/votacoes`);
@@ -160,8 +164,9 @@ function exibirSessao(sessaoId) {
   if (!mem) return;
 
   box.classList.toggle("oculto");
-  if (!mem.carregado) return;
+  if (!mem.carregado) return; // ainda carregando
 
+  // exibir proposições
   let html = `
     <strong>Sessão para votação de propostas legislativas</strong><br><br>
     <strong>Local:</strong> Plenário da Câmara dos Deputados<br>
@@ -180,7 +185,7 @@ function exibirSessao(sessaoId) {
   mem.proposicoes.forEach(p => {
     const pHtml = document.createElement("div");
     pHtml.className = "proposicao";
-    pHtml.dataset.textoOriginal = p.textoOriginal;
+    pHtml.dataset.textoOriginal = p.textoOriginal; // guarda original para busca
     pHtml.innerHTML = `
       ➡️ <strong>
         <a href="https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${p.id}" target="_blank">
@@ -192,26 +197,15 @@ function exibirSessao(sessaoId) {
       ${p.resumoVotos ? `<div class="votos">${p.resumoVotos}</div>` : ""}
     `;
     containerProps.appendChild(pHtml);
-
-    // aplicar destaque se houver termo digitado
-    if (termoAtual) aplicarDestaque(pHtml, termoAtual);
   });
-}
-
-/* =====================
-   DESTAQUE
-===================== */
-function aplicarDestaque(elemento, termo) {
-  const regex = new RegExp(`(${termo})`, "gi");
-  elemento.innerHTML = elemento.dataset.textoOriginal.replace(regex, `<span class="highlight">$1</span>`);
 }
 
 /* =====================
    BUSCA
 ===================== */
 buscaGeral.addEventListener("input", () => {
-  termoAtual = buscaGeral.value.trim();
-  const termoLower = termoAtual.toLowerCase();
+  const termo = buscaGeral.value.trim();
+  const termoLower = termo.toLowerCase();
 
   document.querySelectorAll(".evento").forEach(sessao => {
     const detalhe = sessao.querySelector(".detalhe");
@@ -221,7 +215,7 @@ buscaGeral.addEventListener("input", () => {
 
     let encontrou = false;
 
-    if (!termoAtual) {
+    if (!termo) {
       encontrou = true;
     } else {
       const textoSessao = ((mem.sessao.titulo || "") + " " + (mem.sessao.descricao || "")).toLowerCase();
@@ -234,12 +228,15 @@ buscaGeral.addEventListener("input", () => {
 
     sessao.style.display = encontrou ? "" : "none";
 
-    if (encontrou && detalhe && mem.carregado) {
+    // destacar palavra em negrito
+    if (encontrou && termo) {
       detalhe.classList.remove("oculto");
-      detalhe.querySelectorAll(".proposicao").forEach(pHtml => {
-        aplicarDestaque(pHtml, termoAtual);
+      detalhe.querySelectorAll(".proposicao, .resultado, .votos, .video, strong, a").forEach(el => {
+        const original = el.dataset.textoOriginal || el.textContent;
+        const regex = new RegExp(`(${termo})`, "gi");
+        el.innerHTML = original.replace(regex, "<strong>$1</strong>");
       });
-    } else if (!termoAtual && detalhe) {
+    } else if (!termo) {
       detalhe.classList.add("oculto");
     }
   });
