@@ -129,7 +129,7 @@ async function carregarSessoes() {
     : "Nenhuma sessão encontrada.";
 
   sessoes.forEach(criarSessao);
-  aplicarBusca(); // aplica busca imediatamente
+  aplicarBusca(); // aplica busca imediata caso já tenha texto digitado
 }
 
 /* =====================
@@ -141,7 +141,7 @@ function criarSessao(ev) {
   div.id = `sessao-${ev.id}`;
 
   div.innerHTML = `
-    <strong class="tituloSessao">${new Date(ev.dataHoraInicio).toLocaleString()}</strong><br>
+    <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong><br>
     Sessão do Plenário
     <div id="det-${ev.id}" class="detalhe oculto"></div>
   `;
@@ -186,12 +186,15 @@ async function carregarDetalhes(ev, votacoes, box, blocoSessao) {
   box.innerHTML = html;
 
   const containerProps = box.querySelector(".lista-props");
+  let contadorVotacoes = 0;
 
   for (const v of votacoes) {
     const resp = await fetch(`${BASE}/votacoes/${v.id}`);
     const d = await resp.json();
     const voto = d.dados;
     if (!voto?.proposicoesAfetadas) continue;
+
+    contadorVotacoes++;
 
     const resultado = voto.resultado || voto.descricao || "Resultado não informado";
     const resumoVotos = voto.resumoVotacao || "";
@@ -215,24 +218,16 @@ async function carregarDetalhes(ev, votacoes, box, blocoSessao) {
   }
 
   box.dataset.carregado = "1";
-  aplicarBusca(); // reaplica busca/destaque após abrir sessão
+  aplicarBusca(); // reaplica destaque após abrir sessão
 }
 
 /* =====================
-   BUSCA DE TEXTO COM DESTAQUE
+   BUSCA DE TEXTO
 ===================== */
 function aplicarBusca() {
   const termo = buscaGeral.value.trim();
   if (!termo) {
-    document.querySelectorAll(".evento").forEach(sessao => {
-      sessao.style.display = "";
-      // remove destaques
-      sessao.querySelectorAll(".highlight").forEach(h => {
-        const parent = h.parentNode;
-        parent.replaceChild(document.createTextNode(h.innerText), h);
-        parent.normalize();
-      });
-    });
+    document.querySelectorAll(".evento").forEach(sessao => sessao.style.display = "");
     return;
   }
 
@@ -240,22 +235,21 @@ function aplicarBusca() {
 
   document.querySelectorAll(".evento").forEach(sessao => {
     const detalhe = sessao.querySelector(".detalhe");
-    const titulo = sessao.querySelector(".tituloSessao");
+    const textoSessao = sessao.querySelector("strong").innerText.toLowerCase();
     const textoDetalhe = detalhe ? detalhe.innerText.toLowerCase() : "";
-    const textoTitulo = titulo.innerText.toLowerCase();
-    const contem = textoDetalhe.includes(termo.toLowerCase()) || textoTitulo.includes(termo.toLowerCase());
+    const contem = textoSessao.includes(termo.toLowerCase()) || textoDetalhe.includes(termo.toLowerCase());
 
     sessao.style.display = contem ? "" : "none";
 
-    // destaque na sessão
-    if (titulo) {
-      const textoOriginal = titulo.getAttribute("data-original") || titulo.innerText;
-      titulo.setAttribute("data-original", textoOriginal);
-      titulo.innerHTML = textoOriginal.replace(regex, '<span class="highlight">$1</span>');
-    }
+    // remove destaques antigos
+    detalhe?.querySelectorAll(".highlight").forEach(h => {
+      const parent = h.parentNode;
+      parent.replaceChild(document.createTextNode(h.innerText), h);
+      parent.normalize();
+    });
 
-    // destaque nos detalhes
-    if (detalhe && detalhe.dataset.carregado) {
+    // aplica novo destaque
+    if (detalhe && contem) {
       detalhe.querySelectorAll(".proposicao").forEach(p => {
         const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT, null, false);
         let node;
