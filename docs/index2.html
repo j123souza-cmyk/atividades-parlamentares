@@ -7,47 +7,22 @@
 <style>
 body { font-family: Arial, sans-serif; margin: 20px; }
 
-#controles {
-  margin-bottom: 15px;
-  display: flex;
-  gap: 20px;
-  align-items: center;
-}
+#controles { margin-bottom: 15px; display: flex; gap: 20px; align-items: center; }
+select, input { padding: 6px; font-size: 14px; }
 
-select, input {
-  padding: 6px;
-  font-size: 14px;
-}
-
-.evento {
-  padding: 10px;
-  border-bottom: 1px solid #ccc;
-  cursor: pointer;
-}
-
+.evento { padding: 10px; border-bottom: 1px solid #ccc; cursor: pointer; }
 .evento:hover { background: #f2f2f2; }
 
-.detalhe {
-  margin-top: 8px;
-  padding: 10px;
-  background: #fafafa;
-  border-left: 3px solid #005ea8;
-}
-
+.detalhe { margin-top: 8px; padding: 10px; background: #fafafa; border-left: 3px solid #005ea8; }
 .oculto { display: none; }
 
 #status { font-weight: bold; margin-bottom: 10px; }
 
 .proposicao { margin-bottom: 14px; }
-
 .resultado { font-style: italic; margin: 4px 0; }
-
 .votos { font-weight: bold; margin-top: 4px; }
-
 .video { margin: 8px 0; }
-
 .busca { margin: 10px 0; width: 100%; }
-
 .busca input { width: 100%; box-sizing: border-box; }
 </style>
 </head>
@@ -80,7 +55,7 @@ const lista = document.getElementById("lista");
 const seletorPeriodo = document.getElementById("periodo");
 const buscaGeral = document.getElementById("buscaGeral");
 
-let sessoesMemoria = []; // Guarda sessões e proposições
+let sessoesMemoria = []; // guarda sessões já exibidas e proposições carregadas
 
 /* =====================
    CARREGAR SESSÕES
@@ -109,15 +84,11 @@ async function carregarSessoes() {
     );
     const json = await resp.json();
     const dados = json.dados || [];
-
     if (!dados.length) break;
 
     for (const ev of dados) {
       const texto = ((ev.titulo || "") + (ev.descricao || "")).toLowerCase();
-      if (
-        texto.includes("sessão") &&
-        texto.includes("deliberativa")
-      ) {
+      if (texto.includes("sessão") && texto.includes("deliberativa")) {
         sessoes.push(ev);
       }
     }
@@ -128,41 +99,6 @@ async function carregarSessoes() {
     ? `Sessões encontradas: ${sessoes.length}`
     : "Nenhuma sessão encontrada.";
 
-  // Carrega todas as proposições de cada sessão antes de exibir
-  await Promise.all(
-    sessoes.map(async (ev) => {
-      const votacoesResp = await fetch(`${BASE}/eventos/${ev.id}/votacoes`);
-      const votacoesJson = await votacoesResp.json();
-      const votacoes = votacoesJson.dados || [];
-      const props = [];
-
-      for (const v of votacoes) {
-        try {
-          const respDetalhe = await fetch(`${BASE}/votacoes/${v.id}`);
-          const d = await respDetalhe.json();
-          const voto = d.dados;
-          if (!voto?.proposicoesAfetadas) continue;
-          voto.proposicoesAfetadas.forEach(p => {
-            props.push({
-              id: p.id,
-              tipo: p.siglaTipo,
-              numero: p.numero,
-              ano: p.ano,
-              ementa: p.ementa || "Sem ementa",
-              resultado: voto.resultado || voto.descricao || "Resultado não informado",
-              resumoVotos: voto.resumoVotacao || ""
-            });
-          });
-        } catch(e) {
-          console.error("Erro ao buscar votação:", e);
-        }
-      }
-
-      sessoesMemoria.push({ sessao: ev, proposicoes: props });
-    })
-  );
-
-  // Agora todas as proposições estão carregadas, exibe as sessões
   sessoes.forEach(criarSessao);
 }
 
@@ -173,30 +109,71 @@ function criarSessao(ev) {
   const div = document.createElement("div");
   div.className = "evento";
   div.id = `sessao-${ev.id}`;
-
   div.innerHTML = `
     <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong><br>
     Sessão do Plenário
     <div id="det-${ev.id}" class="detalhe oculto"></div>
   `;
-
   div.onclick = () => abrirSessao(ev);
   lista.appendChild(div);
+  // inicializa memoria
+  sessoesMemoria.push({ sessao: ev, proposicoes: [], carregado: false });
 }
 
 /* =====================
-   ABRIR SESSÃO
+   ABRIR SESSÃO (lazy load)
 ===================== */
-function abrirSessao(ev) {
+async function abrirSessao(ev) {
   const box = document.getElementById(`det-${ev.id}`);
-  const aberto = !box.classList.contains("oculto");
-  if (!aberto) box.classList.remove("oculto");
-  else box.classList.add("oculto");
+  const mem = sessoesMemoria.find(s => s.sessao.id === ev.id);
 
-  if (box.dataset.carregado) return;
+  box.classList.toggle("oculto");
+  if (mem.carregado) return;
 
-  const dadosMemoria = sessoesMemoria.find(s => s.sessao.id === ev.id);
-  if (!dadosMemoria) return;
+  box.innerHTML = "Carregando proposições…";
+
+  try {
+    const votacoesResp = await fetch(`${BASE}/eventos/${ev.id}/votacoes`);
+    const votacoesJson = await votacoesResp.json();
+    const votacoes = votacoesJson.dados || [];
+    const props = [];
+
+    for (const v of votacoes) {
+      try {
+        const respDetalhe = await fetch(`${BASE}/votacoes/${v.id}`);
+        const d = await respDetalhe.json();
+        const voto = d.dados;
+        if (!voto?.proposicoesAfetadas) continue;
+        voto.proposicoesAfetadas.forEach(p => {
+          props.push({
+            id: p.id,
+            tipo: p.siglaTipo,
+            numero: p.numero,
+            ano: p.ano,
+            ementa: p.ementa || "Sem ementa",
+            resultado: voto.resultado || voto.descricao || "Resultado não informado",
+            resumoVotos: voto.resumoVotacao || ""
+          });
+        });
+      } catch(e) { console.error("Erro detalhamento:", e); }
+    }
+
+    mem.proposicoes = props;
+    mem.carregado = true;
+
+    exibirProposicoes(ev.id, props);
+  } catch (e) {
+    console.error("Erro ao carregar votações:", e);
+    box.innerHTML = "Erro ao carregar proposições.";
+  }
+}
+
+/* =====================
+   EXIBIR PROPOSIÇÕES
+===================== */
+function exibirProposicoes(sessaoId, proposicoes) {
+  const box = document.getElementById(`det-${sessaoId}`);
+  const ev = sessoesMemoria.find(s => s.sessao.id === sessaoId).sessao;
 
   let html = `
     <strong>Sessão para votação de propostas legislativas</strong><br><br>
@@ -211,9 +188,10 @@ function abrirSessao(ev) {
 
   html += `<div class="lista-props"></div>`;
   box.innerHTML = html;
+
   const containerProps = box.querySelector(".lista-props");
 
-  for (const p of dadosMemoria.proposicoes) {
+  for (const p of proposicoes) {
     const pHtml = document.createElement("div");
     pHtml.className = "proposicao";
 
@@ -229,8 +207,6 @@ function abrirSessao(ev) {
     `;
     containerProps.appendChild(pHtml);
   }
-
-  box.dataset.carregado = "1";
 }
 
 /* =====================
@@ -243,27 +219,26 @@ buscaGeral.addEventListener("input", () => {
   document.querySelectorAll(".evento").forEach(sessao => {
     const detalhe = sessao.querySelector(".detalhe");
     const sessaoId = parseInt(sessao.id.replace("sessao-", ""));
-    const dadosMemoria = sessoesMemoria.find(s => s.sessao.id === sessaoId);
-    if (!dadosMemoria) return;
+    const mem = sessoesMemoria.find(s => s.sessao.id === sessaoId);
+    if (!mem) return;
 
     let encontrou = false;
+
     if (!termo) {
       encontrou = true;
     } else {
-      const textoSessao = ((dadosMemoria.sessao.titulo || "") + " " + (dadosMemoria.sessao.descricao || "")).toLowerCase();
+      const textoSessao = ((mem.sessao.titulo || "") + " " + (mem.sessao.descricao || "")).toLowerCase();
       if (textoSessao.includes(termoLower)) encontrou = true;
 
-      for (const p of dadosMemoria.proposicoes) {
+      mem.proposicoes.forEach(p => {
         const textoP = (p.ementa + " " + p.tipo + p.numero + "/" + p.ano + " " + p.resultado + " " + (p.resumoVotos||"")).toLowerCase();
-        if (textoP.includes(termoLower)) {
-          encontrou = true;
-          break;
-        }
-      }
+        if (textoP.includes(termoLower)) encontrou = true;
+      });
     }
 
     sessao.style.display = encontrou ? "" : "none";
 
+    // destacar palavra em negrito
     if (encontrou && termo) {
       detalhe.classList.remove("oculto");
       detalhe.querySelectorAll(".proposicao, .resultado, .votos, .video, strong, a").forEach(el => {
