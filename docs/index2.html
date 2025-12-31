@@ -55,7 +55,6 @@ select, input {
   box-sizing: border-box;
 }
 
-/* Destaque do termo pesquisado */
 .highlight {
   font-weight: bold;
   color: blue;
@@ -177,7 +176,7 @@ function abrirSessao(ev, bloco) {
 }
 
 /* =====================
-   DETALHES
+   DETALHES + LINKS
 ===================== */
 async function carregarDetalhes(ev, votacoes, box) {
 
@@ -194,7 +193,6 @@ async function carregarDetalhes(ev, votacoes, box) {
 
   html += `<div class="lista-props"></div>`;
   box.innerHTML = html;
-
   const containerProps = box.querySelector(".lista-props");
 
   for (const v of votacoes) {
@@ -225,33 +223,43 @@ async function carregarDetalhes(ev, votacoes, box) {
   }
 
   box.dataset.carregado = "1";
+  aplicarDestaqueBusca(); // ✅ aplica o destaque ao abrir sessão
 }
 
 /* =====================
-   BUSCA DE TEXTO
+   DESTAQUE DE TEXTO
 ===================== */
-buscaGeral.addEventListener("input", () => {
-  const termo = buscaGeral.value.toLowerCase();
+function aplicarDestaqueBusca() {
+  const termo = buscaGeral.value.trim();
+  if (!termo) return;
+
   const regex = new RegExp(`(${termo})`, "gi");
 
   document.querySelectorAll(".evento").forEach(sessao => {
     const detalhe = sessao.querySelector(".detalhe");
+    // Percorre apenas elementos de texto puro dentro das proposições
+    detalhe.querySelectorAll(".proposicao").forEach(p => {
+      p.childNodes.forEach(n => {
+        if (n.nodeType === Node.TEXT_NODE) {
+          n.textContent = n.textContent.replace(regex, "**$1**"); // temporário
+        } else if (n.nodeType === Node.ELEMENT_NODE) {
+          n.innerHTML = n.innerHTML.replace(regex, '<span class="highlight">$1</span>');
+        }
+      });
+    });
+  });
+}
+
+/* =====================
+   FILTRO DE SESSÕES PELO TEXTO
+===================== */
+buscaGeral.addEventListener("input", () => {
+  const termo = buscaGeral.value.toLowerCase();
+  document.querySelectorAll(".evento").forEach(sessao => {
+    const detalhe = sessao.querySelector(".detalhe");
     const textoSessao = sessao.innerText.toLowerCase();
     const textoDetalhe = detalhe?.innerText.toLowerCase() || "";
-    const corresponde = (textoSessao + textoDetalhe).includes(termo);
-
-    if (corresponde) {
-      sessao.style.display = "";
-      if (termo) {
-        // Destaque em azul e negrito
-        detalhe.querySelectorAll(".proposicao").forEach(p => {
-          p.innerHTML = p.innerHTML.replace(/<span class="highlight">|<\/span>/g, "");
-          p.innerHTML = p.innerHTML.replace(regex, '<span class="highlight">$1</span>');
-        });
-      }
-    } else {
-      sessao.style.display = "none";
-    }
+    sessao.style.display = (textoSessao + textoDetalhe).includes(termo) ? "" : "none";
   });
 });
 
