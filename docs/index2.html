@@ -55,7 +55,7 @@ const lista = document.getElementById("lista");
 const seletorPeriodo = document.getElementById("periodo");
 const buscaGeral = document.getElementById("buscaGeral");
 
-let sessoesMemoria = []; // guarda sessões já exibidas e proposições carregadas
+let sessoesMemoria = []; // guarda sessões e proposições
 
 /* =====================
    CARREGAR SESSÕES
@@ -99,7 +99,43 @@ async function carregarSessoes() {
     ? `Sessões encontradas: ${sessoes.length}`
     : "Nenhuma sessão encontrada.";
 
-  sessoes.forEach(criarSessao);
+  sessoes.forEach(ev => {
+    sessoesMemoria.push({ sessao: ev, proposicoes: [], carregado: false });
+    criarSessao(ev);
+  });
+
+  // Pré-carregar todas as proposições em background
+  sessoesMemoria.forEach(async (mem) => {
+    try {
+      const votacoesResp = await fetch(`${BASE}/eventos/${mem.sessao.id}/votacoes`);
+      const votacoesJson = await votacoesResp.json();
+      const votacoes = votacoesJson.dados || [];
+      const props = [];
+
+      for (const v of votacoes) {
+        try {
+          const respDetalhe = await fetch(`${BASE}/votacoes/${v.id}`);
+          const d = await respDetalhe.json();
+          const voto = d.dados;
+          if (!voto?.proposicoesAfetadas) continue;
+
+          voto.proposicoesAfetadas.forEach(p => {
+            props.push({
+              id: p.id,
+              tipo: p.siglaTipo,
+              numero: p.numero,
+              ano: p.ano,
+              ementa: p.ementa || "Sem ementa",
+              resultado: voto.resultado || voto.descricao || "Resultado não informado",
+              resumoVotos: voto.resumoVotacao || ""
+            });
+          });
+        } catch(e) { console.error("Erro detalhamento:", e); }
+      }
+      mem.proposicoes = props;
+      mem.carregado = true;
+    } catch(e) { console.error("Erro carregamento proposições:", e); }
+  });
 }
 
 /* =====================
@@ -114,75 +150,30 @@ function criarSessao(ev) {
     Sessão do Plenário
     <div id="det-${ev.id}" class="detalhe oculto"></div>
   `;
-  div.onclick = () => abrirSessao(ev);
+  div.onclick = () => exibirSessao(ev.id);
   lista.appendChild(div);
-  // inicializa memoria
-  sessoesMemoria.push({ sessao: ev, proposicoes: [], carregado: false });
 }
 
 /* =====================
-   ABRIR SESSÃO (lazy load)
+   EXIBIR SESSÃO
 ===================== */
-async function abrirSessao(ev) {
-  const box = document.getElementById(`det-${ev.id}`);
-  const mem = sessoesMemoria.find(s => s.sessao.id === ev.id);
+function exibirSessao(sessaoId) {
+  const box = document.getElementById(`det-${sessaoId}`);
+  const mem = sessoesMemoria.find(s => s.sessao.id === sessaoId);
+  if (!mem) return;
 
   box.classList.toggle("oculto");
-  if (mem.carregado) return;
+  if (!mem.carregado) return; // ainda carregando
 
-  box.innerHTML = "Carregando proposições…";
-
-  try {
-    const votacoesResp = await fetch(`${BASE}/eventos/${ev.id}/votacoes`);
-    const votacoesJson = await votacoesResp.json();
-    const votacoes = votacoesJson.dados || [];
-    const props = [];
-
-    for (const v of votacoes) {
-      try {
-        const respDetalhe = await fetch(`${BASE}/votacoes/${v.id}`);
-        const d = await respDetalhe.json();
-        const voto = d.dados;
-        if (!voto?.proposicoesAfetadas) continue;
-        voto.proposicoesAfetadas.forEach(p => {
-          props.push({
-            id: p.id,
-            tipo: p.siglaTipo,
-            numero: p.numero,
-            ano: p.ano,
-            ementa: p.ementa || "Sem ementa",
-            resultado: voto.resultado || voto.descricao || "Resultado não informado",
-            resumoVotos: voto.resumoVotacao || ""
-          });
-        });
-      } catch(e) { console.error("Erro detalhamento:", e); }
-    }
-
-    mem.proposicoes = props;
-    mem.carregado = true;
-
-    exibirProposicoes(ev.id, props);
-  } catch (e) {
-    console.error("Erro ao carregar votações:", e);
-    box.innerHTML = "Erro ao carregar proposições.";
-  }
-}
-
-/* =====================
-   EXIBIR PROPOSIÇÕES
-===================== */
-function exibirProposicoes(sessaoId, proposicoes) {
-  const box = document.getElementById(`det-${sessaoId}`);
-  const ev = sessoesMemoria.find(s => s.sessao.id === sessaoId).sessao;
-
+  // exibir proposições
   let html = `
     <strong>Sessão para votação de propostas legislativas</strong><br><br>
     <strong>Local:</strong> Plenário da Câmara dos Deputados<br>
-    <strong>Início:</strong> ${new Date(ev.dataHoraInicio).toLocaleString()}<br>
+    <strong>Início:</strong> ${new Date(mem.sessao.dataHoraInicio).toLocaleString()}<br>
   `;
 
-  if (ev.urlRegistro || ev.urlTransmissao) {
-    const link = ev.urlRegistro || ev.urlTransmissao;
+  if (mem.sessao.urlRegistro || mem.sessao.urlTransmissao) {
+    const link = mem.sessao.urlRegistro || mem.sessao.urlTransmissao;
     html += `<div class="video">▶ <a href="${link}" target="_blank">Assistir vídeo da sessão</a></div>`;
   }
 
@@ -190,11 +181,9 @@ function exibirProposicoes(sessaoId, proposicoes) {
   box.innerHTML = html;
 
   const containerProps = box.querySelector(".lista-props");
-
-  for (const p of proposicoes) {
+  mem.proposicoes.forEach(p => {
     const pHtml = document.createElement("div");
     pHtml.className = "proposicao";
-
     pHtml.innerHTML = `
       ➡️ <strong>
         <a href="https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${p.id}" target="_blank">
@@ -206,7 +195,7 @@ function exibirProposicoes(sessaoId, proposicoes) {
       ${p.resumoVotos ? `<div class="votos">${p.resumoVotos}</div>` : ""}
     `;
     containerProps.appendChild(pHtml);
-  }
+  });
 }
 
 /* =====================
