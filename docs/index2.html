@@ -50,8 +50,6 @@ select, input {
 
 .sinaliza { color: blue; font-weight: bold; margin-left: 6px; }
 
-.carregando { color: orange; font-weight: bold; margin-left: 6px; }
-
 </style>
 </head>
 
@@ -131,14 +129,19 @@ async function carregarSessoes() {
     : "Nenhuma sessão encontrada.";
 
   // Criar lista inicial de sessões
-  sessoes.forEach(criarSessao);
-
-  // Pré-carregar proposições de todas as sessões
   for (const ev of sessoes) {
-    preCarregarProposicoes(ev);
+    criarSessao(ev);
   }
 
-  // Aplicar sinalização se já houver termo pesquisado
+  // Pré-carregar proposições de todas as sessões sequencialmente
+  for (const ev of sessoes) {
+    const sinal = document.querySelector(`#sessao-${ev.id} .sinaliza`);
+    sinal.innerText = " ⏳ Carregando proposições…";
+    await preCarregarProposicoes(ev);
+    sinal.innerText = ""; // Remove sinal após carregar
+  }
+
+  // Aplicar sinalização de busca caso já haja termo
   aplicarBusca();
 }
 
@@ -151,7 +154,7 @@ function criarSessao(ev) {
   div.id = `sessao-${ev.id}`;
 
   div.innerHTML = `
-    <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong><span class="sinaliza"></span><span class="carregando"></span><br>
+    <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong><span class="sinaliza"></span><br>
     Sessão do Plenário
     <div id="det-${ev.id}" class="detalhe oculto"></div>
   `;
@@ -164,8 +167,7 @@ function criarSessao(ev) {
    PRÉ-CARREGAR PROPOSIÇÕES
 ===================== */
 async function preCarregarProposicoes(ev) {
-  const sinalCarregando = document.querySelector(`#sessao-${ev.id} .carregando`);
-  sinalCarregando.innerText = " Carregando proposições…";
+  if (cacheProposicoes[ev.id]) return;
 
   const resp = await fetch(`${BASE}/eventos/${ev.id}/votacoes`);
   const votacoes = (await resp.json()).dados || [];
@@ -198,10 +200,6 @@ async function preCarregarProposicoes(ev) {
   }
 
   cacheProposicoes[ev.id] = container.innerHTML;
-  sinalCarregando.innerText = ""; // remove sinalização após carregar
-
-  // Atualiza sinalização de busca se já houver termo
-  aplicarBusca();
 }
 
 /* =====================
@@ -221,15 +219,14 @@ function abrirSessao(ev, bloco) {
    BUSCA DE TEXTO
 ===================== */
 function aplicarBusca() {
-  const termo = buscaGeral.value.trim();
-  const termoLower = termo.toLowerCase();
+  const termo = buscaGeral.value.trim().toLowerCase();
 
   document.querySelectorAll(".evento").forEach(sessao => {
     const sinal = sessao.querySelector(".sinaliza");
     const sessaoId = sessao.id.replace('sessao-', '');
     sinal.innerText = "";
 
-    if (termo && cacheProposicoes[sessaoId] && cacheProposicoes[sessaoId].toLowerCase().includes(termoLower)) {
+    if (termo && cacheProposicoes[sessaoId] && cacheProposicoes[sessaoId].toLowerCase().includes(termo)) {
       sinal.innerText = " 🔍 Palavra encontrada";
     }
 
@@ -281,6 +278,7 @@ seletorPeriodo.addEventListener("change", carregarSessoes);
 
 /* Inicial */
 carregarSessoes();
+
 </script>
 
 </body>
