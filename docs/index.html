@@ -148,10 +148,10 @@
   <p class="presenca" id="presencaTexto"></p>
   <canvas id="grafico" width="440" height="300"></canvas>
 
-  <h3>Proposições apresentadas</h3>
+  <h3>Proposições apresentadas (último ano)</h3>
   <div id="proposicoesApresentadas"></div>
 
-  <h3>Proposições votadas</h3>
+  <h3>Proposições votadas (último ano)</h3>
   <div id="proposicoesVotadas"></div>
 </section>
 
@@ -234,13 +234,20 @@ async function abrirDetalhe(dep) {
   proposicoesApresentadas.innerHTML = "Carregando proposições apresentadas...";
   proposicoesVotadas.innerHTML = "Carregando proposições votadas...";
 
-  // 1️⃣ Proposições apresentadas
+  // Período do último ano
+  const fim = new Date();
+  const inicio = new Date();
+  inicio.setFullYear(fim.getFullYear() - 1);
+  const dataInicio = inicio.toISOString().slice(0,10);
+  const dataFim = fim.toISOString().slice(0,10);
+
+  // 1️⃣ Proposições apresentadas no último ano
   try {
-    const resp = await fetch(`${BASE}/deputados/${dep.id}/proposicoes`);
+    const resp = await fetch(`${BASE}/deputados/${dep.id}/proposicoes?dataInicio=${dataInicio}&dataFim=${dataFim}&itens=1000`);
     const props = (await resp.json()).dados || [];
-    if (props.length === 0) proposicoesApresentadas.innerText = "Nenhuma proposição apresentada.";
-    else {
-      proposicoesApresentadas.innerHTML = props.map(p => `
+    proposicoesApresentadas.innerHTML = `<p>Total: ${props.length}</p>`;
+    if (props.length > 0) {
+      proposicoesApresentadas.innerHTML += props.map(p => `
         <div>
           <strong>${p.siglaTipo} ${p.numero}/${p.ano}</strong> - ${p.ementa || "Sem ementa"}
         </div>
@@ -250,18 +257,17 @@ async function abrirDetalhe(dep) {
     proposicoesApresentadas.innerText = "Erro ao carregar proposições apresentadas.";
   }
 
-  // 2️⃣ Proposições votadas
+  // 2️⃣ Proposições votadas no último ano
   try {
-    const respVot = await fetch(`${BASE}/deputados/${dep.id}/votacoes`);
+    const respVot = await fetch(`${BASE}/deputados/${dep.id}/votacoes?dataInicio=${dataInicio}&dataFim=${dataFim}&itens=1000`);
     const votacoes = (await respVot.json()).dados || [];
-    if (votacoes.length === 0) proposicoesVotadas.innerText = "Nenhuma votação registrada.";
-    else {
+    proposicoesVotadas.innerHTML = `<p>Total: ${votacoes.length}</p>`;
+    if (votacoes.length > 0) {
       const listaVot = await Promise.all(votacoes.map(async v => {
         const r = await fetch(`${BASE}/votacoes/${v.id}`);
         const dadosVot = (await r.json()).dados;
         if (!dadosVot.proposicoesAfetadas) return null;
 
-        // Descobrir o voto do deputado naquela proposição
         const votoDeputado = (dadosVot.deputadosVotos || []).find(dv => dv.deputadoId == dep.id);
         const votoTexto = votoDeputado ? votoDeputado.tipoVoto : "Não registrado";
 
@@ -271,7 +277,7 @@ async function abrirDetalhe(dep) {
           </div>
         `).join("");
       }));
-      proposicoesVotadas.innerHTML = listaVot.filter(Boolean).join("");
+      proposicoesVotadas.innerHTML += listaVot.filter(Boolean).join("");
     }
   } catch {
     proposicoesVotadas.innerText = "Erro ao carregar votações.";
