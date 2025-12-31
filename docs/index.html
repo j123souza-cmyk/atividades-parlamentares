@@ -14,54 +14,25 @@
     .ativa { display: block; }
 
     .filtros { margin: 12px 0; }
-    .filtros input, .filtros select {
-      padding: 6px;
-      margin-right: 6px;
-    }
+    .filtros input, .filtros select { padding: 6px; margin-right: 6px; }
 
-    .deputado {
-      display: flex;
-      gap: 10px;
-      border-bottom: 1px solid #ddd;
-      padding: 8px 0;
-      cursor: pointer;
-    }
+    .deputado { display: flex; gap: 10px; border-bottom: 1px solid #ddd; padding: 8px 0; cursor: pointer; }
     .deputado img { width: 60px; border-radius: 6px; }
 
     #detalhe img { width: 120px; border-radius: 8px; }
 
-    .presenca {
-      margin: 10px 0;
-      font-weight: bold;
-      font-size: 1.05em;
-    }
+    .presenca { margin: 10px 0; font-weight: bold; font-size: 1.05em; }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-    }
-
-    th, td {
-      border: 1px solid #ccc;
-      padding: 6px;
-      text-align: left;
-    }
-
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
     th { background: #f0f0f0; }
 
-    .ranking-container {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-    }
+    .ranking-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .progresso { margin: 10px 0; font-weight: bold; }
 
-    .progresso {
-      margin: 10px 0;
-      font-weight: bold;
-    }
-
-    .secao-lista { margin-bottom: 20px; }
+    .lista-proposicoes { margin-top: 12px; }
+    .lista-proposicoes h4 { margin-bottom: 4px; }
+    .lista-proposicoes ul { padding-left: 20px; }
   </style>
 </head>
 <body>
@@ -96,7 +67,6 @@
   <p class="progresso" id="statusRanking">
     Clique no botão para gerar o ranking com base nos filtros atuais
   </p>
-
   <button onclick="gerarRankingPresenca()">Gerar ranking</button>
 
   <div class="ranking-container">
@@ -104,29 +74,16 @@
       <h3>Top 20 – Maior Presença</h3>
       <table>
         <thead>
-          <tr>
-            <th>#</th>
-            <th>Deputado</th>
-            <th>Partido</th>
-            <th>UF</th>
-            <th>Presença (%)</th>
-          </tr>
+          <tr><th>#</th><th>Deputado</th><th>Partido</th><th>UF</th><th>Presença (%)</th></tr>
         </thead>
         <tbody id="rankingMaior"></tbody>
       </table>
     </div>
-
     <div>
       <h3>Top 20 – Menor Presença</h3>
       <table>
         <thead>
-          <tr>
-            <th>#</th>
-            <th>Deputado</th>
-            <th>Partido</th>
-            <th>UF</th>
-            <th>Presença (%)</th>
-          </tr>
+          <tr><th>#</th><th>Deputado</th><th>Partido</th><th>UF</th><th>Presença (%)</th></tr>
         </thead>
         <tbody id="rankingMenor"></tbody>
       </table>
@@ -141,16 +98,12 @@
   <p class="presenca" id="presencaTexto"></p>
   <canvas id="grafico" width="440" height="300"></canvas>
 
-  <div class="secao-lista">
-    <h3>Proposições apresentadas (último ano)</h3>
-    <p id="totalApresentadas"></p>
-    <div id="proposicoesApresentadas"></div>
-  </div>
+  <div class="lista-proposicoes">
+    <h4>Proposições Apresentadas (último ano)</h4>
+    <ul id="proposicoesApresentadas"></ul>
 
-  <div class="secao-lista">
-    <h3>Proposições votadas (último ano)</h3>
-    <p id="totalVotadas"></p>
-    <div id="proposicoesVotadas"></div>
+    <h4>Proposições Votadas (último ano)</h4>
+    <ul id="proposicoesVotadas"></ul>
   </div>
 </section>
 
@@ -170,9 +123,11 @@ fetch(`${BASE}/deputados?ordem=ASC&ordenarPor=nome`)
   .then(r => r.json())
   .then(json => {
     const statusEl = document.getElementById('status');
-    if(statusEl) statusEl.remove();
+    if (statusEl) statusEl.remove();
+
     deputados = json.dados;
     deputadosFiltrados = deputados;
+
     preencherFiltros(deputados);
     renderizarLista(deputados);
   });
@@ -180,7 +135,6 @@ fetch(`${BASE}/deputados?ordem=ASC&ordenarPor=nome`)
 function preencherFiltros(lista) {
   [...new Set(lista.map(d => d.siglaPartido))].sort()
     .forEach(p => filtroPartido.innerHTML += `<option value="${p}">${p}</option>`);
-
   [...new Set(lista.map(d => d.siglaUf))].sort()
     .forEach(u => filtroUf.innerHTML += `<option value="${u}">${u}</option>`);
 }
@@ -222,59 +176,26 @@ async function abrirDetalhe(dep) {
   nomeDeputado.innerText = dep.nome;
   fotoDeputado.src = dep.urlFoto;
 
-  // Presença
-  const { presenca, totalEventos, plenarios } = await calcularPresenca(dep);
-  presencaTexto.innerText = `Presença no plenário: ${presenca}%`;
-  desenharGrafico(totalEventos, plenarios);
+  const presencaData = await calcularPresenca(dep);
+  presencaTexto.innerText = `Presença no plenário: ${presencaData.presenca}%`;
 
-  // Proposições apresentadas
-  const anoAtual = new Date().getFullYear();
-  const respProps = await fetch(`${BASE}/proposicoes?autorId=${dep.id}&itens=1000`);
-  const props = (await respProps.json()).dados || [];
-  const propsUltimoAno = props.filter(p => parseInt(p.ano) >= anoAtual - 1);
-  totalApresentadas.innerText = `Total: ${propsUltimoAno.length}`;
-  proposicoesApresentadas.innerHTML = "";
-  propsUltimoAno.forEach(p => {
-    proposicoesApresentadas.innerHTML += `
-      <div>
-        <a href="https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${p.id}" target="_blank">
-          ${p.siglaTipo} ${p.numero}/${p.ano}
-        </a> - ${p.ementa || 'Sem ementa'}
-      </div>`;
+  desenharGrafico(presencaData.totalEventos, presencaData.plenarios);
+
+  // Buscar proposições apresentadas e votadas
+  const proposicoesApresentadas = await buscarProposicoesApresentadas(dep.id);
+  const proposicoesVotadas = await buscarProposicoesVotadas(dep.id);
+
+  const listaApresentadas = document.getElementById('proposicoesApresentadas');
+  const listaVotadas = document.getElementById('proposicoesVotadas');
+  listaApresentadas.innerHTML = "";
+  listaVotadas.innerHTML = "";
+
+  proposicoesApresentadas.forEach(p => {
+    listaApresentadas.innerHTML += `<li>${p.siglaTipo} ${p.numero}/${p.ano} - ${p.ementa || "Sem ementa"}</li>`;
   });
 
-  // Proposições votadas
-  const inicioAno = `${anoAtual-1}-01-01`;
-  const fimAno = `${anoAtual}-12-31`;
-  const respVot = await fetch(`${BASE}/votacoes?dataInicio=${inicioAno}&dataFim=${fimAno}&itens=1000`);
-  const votacoes = (await respVot.json()).dados || [];
-  const votacoesDeputado = [];
-
-  for(const v of votacoes){
-    const r = await fetch(`${BASE}/votacoes/${v.id}`);
-    const dVot = (await r.json()).dados;
-    const votoDeputado = (dVot.deputadosVotos || []).find(dv => dv.deputadoId == dep.id);
-    if(votoDeputado){
-      (dVot.proposicoesAfetadas || []).forEach(p => {
-        votacoesDeputado.push({
-          siglaTipo: p.siglaTipo,
-          numero: p.numero,
-          ano: p.ano,
-          voto: votoDeputado.tipoVoto
-        });
-      });
-    }
-  }
-
-  totalVotadas.innerText = `Total: ${votacoesDeputado.length}`;
-  proposicoesVotadas.innerHTML = "";
-  votacoesDeputado.forEach(p => {
-    proposicoesVotadas.innerHTML += `
-      <div>
-        <a href="https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${p.id}" target="_blank">
-          ${p.siglaTipo} ${p.numero}/${p.ano}
-        </a> - Voto: ${p.voto}
-      </div>`;
+  proposicoesVotadas.forEach(p => {
+    listaVotadas.innerHTML += `<li>${p.siglaTipo} ${p.numero}/${p.ano} - ${p.ementa || "Sem ementa"} - Voto: ${p.voto}</li>`;
   });
 }
 
@@ -297,9 +218,7 @@ async function calcularPresenca(dep) {
       (e.descricao || "").toLowerCase().includes("plenário")
     ).length;
 
-    const presenca = eventos.length > 0
-      ? Math.round((plenarios / eventos.length) * 100)
-      : 0;
+    const presenca = eventos.length > 0 ? Math.round((plenarios / eventos.length) * 100) : 0;
 
     return { presenca, totalEventos: eventos.length, plenarios };
   } catch {
@@ -307,11 +226,68 @@ async function calcularPresenca(dep) {
   }
 }
 
+/* PROPOSIÇÕES APRESENTADAS PELO DEPUTADO */
+async function buscarProposicoesApresentadas(deputadoId) {
+  const fim = new Date();
+  const inicio = new Date();
+  inicio.setFullYear(fim.getFullYear() - 1);
+  const di = inicio.toISOString().slice(0,10);
+  const df = fim.toISOString().slice(0,10);
+
+  const url = `${BASE}/proposicoes?autorId=${deputadoId}&dataInicio=${di}&dataFim=${df}&itens=100`;
+  try {
+    const r = await fetch(url);
+    const j = await r.json();
+    return j.dados || [];
+  } catch {
+    return [];
+  }
+}
+
+/* PROPOSIÇÕES VOTADAS PELO DEPUTADO */
+async function buscarProposicoesVotadas(deputadoId) {
+  const fim = new Date();
+  const inicio = new Date();
+  inicio.setFullYear(fim.getFullYear() - 1);
+  const di = inicio.toISOString().slice(0,10);
+  const df = fim.toISOString().slice(0,10);
+
+  const eventosUrl = `${BASE}/deputados/${deputadoId}/votacoes?dataInicio=${di}&dataFim=${df}&itens=1000`;
+  try {
+    const resp = await fetch(eventosUrl);
+    const dados = (await resp.json()).dados || [];
+
+    const proposicoes = [];
+
+    for (const v of dados) {
+      const votacaoDet = await fetch(`${BASE}/votacoes/${v.id}`);
+      const vData = (await votacaoDet.json()).dados;
+      if (!vData || !vData.deputadosVotos) continue;
+
+      const votoDeputado = vData.deputadosVotos.find(d => d.deputadoId == deputadoId);
+      if (!votoDeputado) continue;
+
+      vData.proposicoesAfetadas.forEach(p => {
+        proposicoes.push({
+          siglaTipo: p.siglaTipo,
+          numero: p.numero,
+          ano: p.ano,
+          ementa: p.ementa,
+          voto: votoDeputado.voto
+        });
+      });
+    }
+
+    return proposicoes;
+  } catch {
+    return [];
+  }
+}
+
 /* RANKING */
 async function gerarRankingPresenca() {
   rankingMaior.innerHTML = "";
   rankingMenor.innerHTML = "";
-
   const status = document.getElementById('statusRanking');
   status.innerText = `Calculando presença de ${deputadosFiltrados.length} deputados...`;
 
@@ -321,40 +297,19 @@ async function gerarRankingPresenca() {
   for (const dep of deputadosFiltrados) {
     status.innerText = `Calculando ${count}/${deputadosFiltrados.length}...`;
     count++;
-
     const r = await calcularPresenca(dep);
-
-    resultados.push({
-      nome: dep.nome,
-      partido: dep.siglaPartido,
-      uf: dep.siglaUf,
-      presenca: r.presenca
-    });
+    resultados.push({ nome: dep.nome, partido: dep.siglaPartido, uf: dep.siglaUf, presenca: r.presenca });
   }
 
   const maior = [...resultados].sort((a,b) => b.presenca - a.presenca).slice(0,20);
   const menor = [...resultados].sort((a,b) => a.presenca - b.presenca).slice(0,20);
 
   maior.forEach((d,i) => {
-    rankingMaior.innerHTML += `
-      <tr>
-        <td>${i+1}</td>
-        <td>${d.nome}</td>
-        <td>${d.partido}</td>
-        <td>${d.uf}</td>
-        <td>${d.presenca}%</td>
-      </tr>`;
+    rankingMaior.innerHTML += `<tr><td>${i+1}</td><td>${d.nome}</td><td>${d.partido}</td><td>${d.uf}</td><td>${d.presenca}%</td></tr>`;
   });
 
   menor.forEach((d,i) => {
-    rankingMenor.innerHTML += `
-      <tr>
-        <td>${i+1}</td>
-        <td>${d.nome}</td>
-        <td>${d.partido}</td>
-        <td>${d.uf}</td>
-        <td>${d.presenca}%</td>
-      </tr>`;
+    rankingMenor.innerHTML += `<tr><td>${i+1}</td><td>${d.nome}</td><td>${d.partido}</td><td>${d.uf}</td><td>${d.presenca}%</td></tr>`;
   });
 
   status.innerText = "Ranking concluído";
