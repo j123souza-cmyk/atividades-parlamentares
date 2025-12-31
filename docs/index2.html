@@ -162,20 +162,24 @@ function abrirSessao(ev, bloco) {
   const box = document.getElementById(`det-${ev.id}`);
   box.classList.toggle("oculto");
 
-  if (box.dataset.carregado) return;
+  if (box.dataset.carregado) {
+    // reaplica destaque caso já carregada
+    destacarTermo(box);
+    return;
+  }
 
   box.innerHTML = "Carregando votações…";
 
   fetch(`${BASE}/eventos/${ev.id}/votacoes`)
     .then(r => r.json())
-    .then(res => carregarDetalhes(ev, res.dados || [], box, bloco))
+    .then(res => carregarDetalhes(ev, res.dados || [], box))
     .catch(() => box.innerText = "Erro ao carregar votações.");
 }
 
 /* =====================
-   DETALHES COM DESTAQUE DE BUSCA
+   DETALHES COM DESTAQUE
 ===================== */
-async function carregarDetalhes(ev, votacoes, box, blocoSessao) {
+async function carregarDetalhes(ev, votacoes, box) {
   let html = `
     <strong>Sessão para votação de propostas legislativas</strong><br><br>
     <strong>Local:</strong> Plenário da Câmara dos Deputados<br>
@@ -191,8 +195,6 @@ async function carregarDetalhes(ev, votacoes, box, blocoSessao) {
   box.innerHTML = html;
 
   const containerProps = box.querySelector(".lista-props");
-  const termo = buscaGeral.value.trim();
-  let encontrou = false;
 
   for (const v of votacoes) {
     const resp = await fetch(`${BASE}/votacoes/${v.id}`);
@@ -204,19 +206,6 @@ async function carregarDetalhes(ev, votacoes, box, blocoSessao) {
     const resumoVotos = voto.resumoVotacao || "";
 
     voto.proposicoesAfetadas.forEach(p => {
-      let ementa = p.ementa || "Sem ementa";
-
-      // verifica se termo existe na ementa
-      let encontradoNoTexto = false;
-      if (termo) {
-        const regex = new RegExp(`(${termo})`, "gi");
-        if (regex.test(ementa)) {
-          encontradoNoTexto = true;
-          ementa = ementa.replace(regex, '<span class="highlight">$1</span>');
-          encontrou = true;
-        }
-      }
-
       const pHtml = document.createElement("div");
       pHtml.className = "proposicao";
       pHtml.innerHTML = `
@@ -226,7 +215,7 @@ async function carregarDetalhes(ev, votacoes, box, blocoSessao) {
             ${p.siglaTipo} ${p.numero}/${p.ano}
           </a>
         </strong><br>
-        ${ementa}<br>
+        ${p.ementa || "Sem ementa"}<br>
         <div class="resultado"><strong>Resultado:</strong> ${resultado}</div>
         ${resumoVotos ? `<div class="votos">${resumoVotos}</div>` : ""}
       `;
@@ -234,23 +223,54 @@ async function carregarDetalhes(ev, votacoes, box, blocoSessao) {
     });
   }
 
-  // se encontrou termo, adiciona sinalização
-  if (termo && encontrou) {
+  box.dataset.carregado = "1";
+
+  // reaplica destaque ao abrir
+  destacarTermo(box);
+}
+
+/* =====================
+   FUNÇÃO DE DESTAQUE
+===================== */
+function destacarTermo(box) {
+  const termo = buscaGeral.value.trim();
+  if (!termo) return;
+
+  let encontrou = false;
+  const regex = new RegExp(`(${termo})`, "gi");
+
+  box.querySelectorAll(".proposicao").forEach(p => {
+    p.innerHTML = p.innerHTML.replace(/<span class="highlight">|<\/span>/gi, ""); // remove antigos
+    if (p.innerText.toLowerCase().includes(termo.toLowerCase())) {
+      p.innerHTML = p.innerHTML.replace(regex, '<span class="highlight">$1</span>');
+      encontrou = true;
+    }
+  });
+
+  // adiciona sinalização no topo da sessão se encontrou
+  const avisoExistente = box.querySelector(".found");
+  if (encontrou && !avisoExistente) {
     const aviso = document.createElement("div");
     aviso.className = "found";
     aviso.innerText = `🔍 Palavra "${termo}" encontrada nesta sessão!`;
+    const containerProps = box.querySelector(".lista-props");
     box.insertBefore(aviso, containerProps);
+  } else if (!encontrou && avisoExistente) {
+    avisoExistente.remove();
   }
-
-  box.dataset.carregado = "1";
 }
 
 /* =====================
    BUSCA DE TEXTO
 ===================== */
 buscaGeral.addEventListener("input", () => {
-  // não esconde nenhuma sessão
-  document.querySelectorAll(".evento").forEach(sessao => sessao.style.display = "");
+  document.querySelectorAll(".evento").forEach(sessao => {
+    sessao.style.display = ""; // mantém todas visíveis
+    const box = sessao.querySelector(".detalhe");
+    if (box.dataset.carregado) {
+      destacarTermo(box); // reaplica destaque em sessões já carregadas
+    }
+  });
 });
 
 /* =====================
