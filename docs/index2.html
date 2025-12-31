@@ -38,6 +38,8 @@ select, input {
 
 #status { font-weight: bold; margin-bottom: 10px; }
 
+#contador { font-weight: bold; margin-bottom: 10px; }
+
 .proposicao { margin-bottom: 14px; }
 
 .resultado { font-style: italic; margin: 4px 0; }
@@ -52,20 +54,16 @@ select, input {
 
 .spinner {
   display: inline-block;
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border: 2px solid #ccc;
   border-top-color: #005ea8;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
-  margin-left: 5px;
 }
 
-@keyframes spin { to { transform: rotate(360deg); } }
-
-#contador {
-  font-weight: bold;
-  margin-bottom: 10px;
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 </style>
 </head>
@@ -82,30 +80,33 @@ select, input {
       <option value="6">Últimos 6 meses</option>
     </select>
   </div>
+
   <div style="flex:1;">
     🔎 <input type="text" id="buscaGeral" placeholder="Buscar texto nas sessões…" disabled />
   </div>
 </div>
 
-<div id="contador">Carregando sessões: 0/0</div>
 <div id="status">Carregando sessões…</div>
+<div id="contador"></div>
 <div id="lista"></div>
 
 <script>
 const BASE = "https://dadosabertos.camara.leg.br/api/v2";
 const status = document.getElementById("status");
+const contador = document.getElementById("contador");
 const lista = document.getElementById("lista");
 const seletorPeriodo = document.getElementById("periodo");
 const buscaGeral = document.getElementById("buscaGeral");
-const contador = document.getElementById("contador");
 
 const cacheProposicoes = {};
 
-// ===================== BUSCAR SESSÕES =====================
+/* =====================
+   BUSCAR SESSÕES
+===================== */
 async function carregarSessoes() {
   lista.innerHTML = "";
   status.innerText = "Carregando sessões…";
-  contador.innerText = "Carregando sessões: 0/0";
+  contador.innerText = "";
   buscaGeral.disabled = true;
 
   const meses = parseInt(seletorPeriodo.value);
@@ -145,47 +146,61 @@ async function carregarSessoes() {
     ? `Sessões encontradas: ${sessoes.length}`
     : "Nenhuma sessão encontrada.";
 
-  contador.innerText = `Carregando sessões: 0/${sessoes.length}`;
-
   // Criar lista inicial de sessões
   sessoes.forEach(criarSessao);
 
-  // Pré-carregar proposições de todas as sessões com sinalização
+  // Sinalização em todas as sessões
+  document.querySelectorAll(".evento").forEach(sessao => {
+    const sinal = sessao.querySelector(".sinaliza");
+    sinal.innerHTML = '⏳ Carregando proposições <span class="spinner"></span>';
+  });
+
+  // Pré-carregar proposições com contador
   let carregadas = 0;
   for (const ev of sessoes) {
-    const sinal = document.querySelector(`#sessao-${ev.id} .sinaliza`);
-    sinal.innerHTML = '⏳ Carregando proposições <span class="spinner"></span>';
     await preCarregarProposicoes(ev);
-    sinal.innerHTML = '';
+
+    // Remove sinalização da sessão carregada
+    const sinal = document.querySelector(`#sessao-${ev.id} .sinaliza`);
+    if (sinal) sinal.innerHTML = '';
+
     carregadas++;
-    contador.innerText = `Carregando sessões: ${carregadas}/${sessoes.length}`;
+    contador.innerText = `Progresso: ${carregadas} / ${sessoes.length}`;
   }
 
+  // Libera busca após terminar
   buscaGeral.disabled = false;
   aplicarBusca();
 }
 
-// ===================== CRIAR SESSÃO =====================
+/* =====================
+   CRIAR SESSÃO
+===================== */
 function criarSessao(ev) {
   const div = document.createElement("div");
   div.className = "evento";
   div.id = `sessao-${ev.id}`;
+
   div.innerHTML = `
     <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong><span class="sinaliza"></span><br>
     Sessão do Plenário
     <div id="det-${ev.id}" class="detalhe oculto"></div>
   `;
+
   div.onclick = () => abrirSessao(ev, div);
   lista.appendChild(div);
 }
 
-// ===================== PRÉ-CARREGAR PROPOSIÇÕES =====================
+/* =====================
+   PRÉ-CARREGAR PROPOSIÇÕES
+===================== */
 async function preCarregarProposicoes(ev) {
   if (cacheProposicoes[ev.id]) return;
 
   const resp = await fetch(`${BASE}/eventos/${ev.id}/votacoes`);
   const votacoes = (await resp.json()).dados || [];
   let html = `<div class="lista-props"></div>`;
+
   const container = document.createElement('div');
   container.innerHTML = html;
   const listaProps = container.querySelector(".lista-props");
@@ -215,7 +230,9 @@ async function preCarregarProposicoes(ev) {
   cacheProposicoes[ev.id] = container.innerHTML;
 }
 
-// ===================== ABRIR SESSÃO =====================
+/* =====================
+   ABRIR SESSÃO
+===================== */
 function abrirSessao(ev, bloco) {
   const box = document.getElementById(`det-${ev.id}`);
   box.classList.toggle("oculto");
@@ -226,7 +243,9 @@ function abrirSessao(ev, bloco) {
   }
 }
 
-// ===================== BUSCA DE TEXTO =====================
+/* =====================
+   BUSCA DE TEXTO
+===================== */
 function aplicarBusca() {
   const termo = buscaGeral.value.trim();
   const termoLower = termo.toLowerCase();
@@ -280,11 +299,13 @@ function destacarPalavra(sessaoId) {
   });
 }
 
-// ===================== EVENTOS =====================
+/* =====================
+   EVENTOS
+===================== */
 buscaGeral.addEventListener("input", aplicarBusca);
 seletorPeriodo.addEventListener("change", carregarSessoes);
 
-// Inicial
+/* Inicial */
 carregarSessoes();
 </script>
 
