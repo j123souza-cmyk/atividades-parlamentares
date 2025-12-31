@@ -50,6 +50,8 @@ select, input {
 
 .sinaliza { color: blue; font-weight: bold; margin-left: 6px; }
 
+.carregando { color: orange; font-weight: bold; margin-left: 6px; }
+
 </style>
 </head>
 
@@ -133,7 +135,7 @@ async function carregarSessoes() {
 
   // Pré-carregar proposições de todas as sessões
   for (const ev of sessoes) {
-    await preCarregarProposicoes(ev);
+    preCarregarProposicoes(ev);
   }
 
   // Aplicar sinalização se já houver termo pesquisado
@@ -149,7 +151,7 @@ function criarSessao(ev) {
   div.id = `sessao-${ev.id}`;
 
   div.innerHTML = `
-    <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong><span class="sinaliza"></span><br>
+    <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong><span class="sinaliza"></span><span class="carregando"></span><br>
     Sessão do Plenário
     <div id="det-${ev.id}" class="detalhe oculto"></div>
   `;
@@ -162,7 +164,8 @@ function criarSessao(ev) {
    PRÉ-CARREGAR PROPOSIÇÕES
 ===================== */
 async function preCarregarProposicoes(ev) {
-  if (cacheProposicoes[ev.id]) return;
+  const sinalCarregando = document.querySelector(`#sessao-${ev.id} .carregando`);
+  sinalCarregando.innerText = " Carregando proposições…";
 
   const resp = await fetch(`${BASE}/eventos/${ev.id}/votacoes`);
   const votacoes = (await resp.json()).dados || [];
@@ -195,6 +198,10 @@ async function preCarregarProposicoes(ev) {
   }
 
   cacheProposicoes[ev.id] = container.innerHTML;
+  sinalCarregando.innerText = ""; // remove sinalização após carregar
+
+  // Atualiza sinalização de busca se já houver termo
+  aplicarBusca();
 }
 
 /* =====================
@@ -274,7 +281,6 @@ seletorPeriodo.addEventListener("change", carregarSessoes);
 
 /* Inicial */
 carregarSessoes();
-
 </script>
 
 </body>
