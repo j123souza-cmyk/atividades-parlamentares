@@ -130,7 +130,7 @@ async function carregarSessoes() {
     ? `Sessões encontradas: ${sessoes.length}`
     : "Nenhuma sessão encontrada.";
 
-  // Carrega votações de cada sessão para memória, sem exibir ainda
+  // Carrega votações de cada sessão para memória
   for (const ev of sessoes) {
     sessoesMemoria.push({ sessao: ev, proposicoes: [] });
     fetch(`${BASE}/eventos/${ev.id}/votacoes`)
@@ -155,13 +155,11 @@ async function carregarSessoes() {
             });
           });
         }
-        // salva no array de memória
         const idx = sessoesMemoria.findIndex(s => s.sessao.id === ev.id);
         if (idx >= 0) sessoesMemoria[idx].proposicoes = props;
       });
   }
 
-  // cria elementos visuais
   sessoes.forEach(criarSessao);
 }
 
@@ -188,7 +186,9 @@ function criarSessao(ev) {
 ===================== */
 function abrirSessao(ev) {
   const box = document.getElementById(`det-${ev.id}`);
-  box.classList.toggle("oculto");
+  const aberto = !box.classList.contains("oculto");
+  if (!aberto) box.classList.remove("oculto");
+  else box.classList.add("oculto");
 
   if (box.dataset.carregado) return;
 
@@ -231,7 +231,7 @@ function abrirSessao(ev) {
 }
 
 /* =====================
-   BUSCA COM DESTAQUE CORRETO
+   BUSCA COM DESTAQUE E ABERTURA
 ===================== */
 buscaGeral.addEventListener("input", () => {
   const termo = buscaGeral.value.trim();
@@ -243,7 +243,6 @@ buscaGeral.addEventListener("input", () => {
     const dadosMemoria = sessoesMemoria.find(s => s.sessao.id === sessaoId);
     if (!dadosMemoria) return;
 
-    // Verifica se o termo existe no título, descrição ou proposições
     let encontrou = false;
     if (!termo) {
       encontrou = true;
@@ -260,15 +259,19 @@ buscaGeral.addEventListener("input", () => {
       }
     }
 
+    // Exibir ou ocultar sessão
     sessao.style.display = encontrou ? "" : "none";
 
-    // Destacar termo no detalhe apenas se sessão aberta
-    if (termo && !detalhe.classList.contains("oculto")) {
+    // Se encontrou, abrir automaticamente e destacar
+    if (encontrou && termo) {
+      detalhe.classList.remove("oculto");
       detalhe.querySelectorAll(".proposicao, .resultado, .votos, .video, strong, a").forEach(el => {
         const texto = el.textContent;
         const regex = new RegExp(`(${termo})`, "gi");
         el.innerHTML = texto.replace(regex, "<strong>$1</strong>");
       });
+    } else if (!termo) {
+      detalhe.classList.add("oculto");
     }
   });
 });
