@@ -60,6 +60,13 @@
       margin: 10px 0;
       font-weight: bold;
     }
+
+    h3 { margin-top: 16px; }
+
+    #proposicoesApresentadas div,
+    #proposicoesVotadas div {
+      margin-bottom: 6px;
+    }
   </style>
 </head>
 <body>
@@ -140,6 +147,12 @@
   <img id="fotoDeputado">
   <p class="presenca" id="presencaTexto"></p>
   <canvas id="grafico" width="440" height="300"></canvas>
+
+  <h3>Proposições apresentadas</h3>
+  <div id="proposicoesApresentadas"></div>
+
+  <h3>Proposições votadas</h3>
+  <div id="proposicoesVotadas"></div>
 </section>
 
 <script>
@@ -153,7 +166,7 @@ function mostrar(id) {
   document.getElementById(id).classList.add('ativa');
 }
 
-/* LISTA */
+/* LISTA DE DEPUTADOS */
 fetch(`${BASE}/deputados?ordem=ASC&ordenarPor=nome`)
   .then(r => r.json())
   .then(json => {
@@ -206,19 +219,66 @@ function renderizarLista(lista) {
   });
 }
 
-/* DETALHE */
-function abrirDetalhe(dep) {
+/* DETALHE DO DEPUTADO */
+async function abrirDetalhe(dep) {
   mostrar('detalhe');
   nomeDeputado.innerText = dep.nome;
   fotoDeputado.src = dep.urlFoto;
 
-  calcularPresenca(dep).then(({ presenca, totalEventos, plenarios }) => {
-    presencaTexto.innerText = `Presença no plenário: ${presenca}%`;
-    desenharGrafico(totalEventos, plenarios);
-  });
+  // Presença
+  const { presenca, totalEventos, plenarios } = await calcularPresenca(dep);
+  presencaTexto.innerText = `Presença no plenário: ${presenca}%`;
+  desenharGrafico(totalEventos, plenarios);
+
+  // Limpar áreas antigas
+  proposicoesApresentadas.innerHTML = "Carregando proposições apresentadas...";
+  proposicoesVotadas.innerHTML = "Carregando proposições votadas...";
+
+  // 1️⃣ Proposições apresentadas
+  try {
+    const resp = await fetch(`${BASE}/deputados/${dep.id}/proposicoes`);
+    const props = (await resp.json()).dados || [];
+    if (props.length === 0) proposicoesApresentadas.innerText = "Nenhuma proposição apresentada.";
+    else {
+      proposicoesApresentadas.innerHTML = props.map(p => `
+        <div>
+          <strong>${p.siglaTipo} ${p.numero}/${p.ano}</strong> - ${p.ementa || "Sem ementa"}
+        </div>
+      `).join("");
+    }
+  } catch {
+    proposicoesApresentadas.innerText = "Erro ao carregar proposições apresentadas.";
+  }
+
+  // 2️⃣ Proposições votadas
+  try {
+    const respVot = await fetch(`${BASE}/deputados/${dep.id}/votacoes`);
+    const votacoes = (await respVot.json()).dados || [];
+    if (votacoes.length === 0) proposicoesVotadas.innerText = "Nenhuma votação registrada.";
+    else {
+      const listaVot = await Promise.all(votacoes.map(async v => {
+        const r = await fetch(`${BASE}/votacoes/${v.id}`);
+        const dadosVot = (await r.json()).dados;
+        if (!dadosVot.proposicoesAfetadas) return null;
+
+        // Descobrir o voto do deputado naquela proposição
+        const votoDeputado = (dadosVot.deputadosVotos || []).find(dv => dv.deputadoId == dep.id);
+        const votoTexto = votoDeputado ? votoDeputado.tipoVoto : "Não registrado";
+
+        return dadosVot.proposicoesAfetadas.map(p => `
+          <div>
+            <strong>${p.siglaTipo} ${p.numero}/${p.ano}</strong> - Voto: ${votoTexto}
+          </div>
+        `).join("");
+      }));
+      proposicoesVotadas.innerHTML = listaVot.filter(Boolean).join("");
+    }
+  } catch {
+    proposicoesVotadas.innerText = "Erro ao carregar votações.";
+  }
 }
 
-/* CÁLCULO DE PRESENÇA (REUTILIZÁVEL) */
+/* CÁLCULO DE PRESENÇA */
 async function calcularPresenca(dep) {
   const fim = new Date();
   const inicio = new Date();
