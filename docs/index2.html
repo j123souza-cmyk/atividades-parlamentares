@@ -22,8 +22,11 @@ select, input { padding: 6px; font-size: 14px; }
 .resultado { font-style: italic; margin: 4px 0; }
 .votos { font-weight: bold; margin-top: 4px; }
 .video { margin: 8px 0; }
+
 .busca { margin: 10px 0; width: 100%; }
 .busca input { width: 100%; box-sizing: border-box; }
+
+.highlight { color: blue; font-weight: bold; }
 </style>
 </head>
 
@@ -56,6 +59,7 @@ const seletorPeriodo = document.getElementById("periodo");
 const buscaGeral = document.getElementById("buscaGeral");
 
 let sessoesMemoria = []; // guarda sessões e proposições
+let termoAtual = "";
 
 /* =====================
    CARREGAR SESSÕES
@@ -197,15 +201,26 @@ function exibirSessao(sessaoId) {
       ${p.resumoVotos ? `<div class="votos">${p.resumoVotos}</div>` : ""}
     `;
     containerProps.appendChild(pHtml);
+
+    // aplicar destaque se já houver termo digitado
+    if (termoAtual) aplicarDestaque(pHtml, termoAtual);
   });
+}
+
+/* =====================
+   DESTAQUE
+===================== */
+function aplicarDestaque(elemento, termo) {
+  const regex = new RegExp(`(${termo})`, "gi");
+  elemento.innerHTML = elemento.dataset.textoOriginal.replace(regex, `<span class="highlight">$1</span>`);
 }
 
 /* =====================
    BUSCA
 ===================== */
 buscaGeral.addEventListener("input", () => {
-  const termo = buscaGeral.value.trim();
-  const termoLower = termo.toLowerCase();
+  termoAtual = buscaGeral.value.trim();
+  const termoLower = termoAtual.toLowerCase();
 
   document.querySelectorAll(".evento").forEach(sessao => {
     const detalhe = sessao.querySelector(".detalhe");
@@ -215,7 +230,7 @@ buscaGeral.addEventListener("input", () => {
 
     let encontrou = false;
 
-    if (!termo) {
+    if (!termoAtual) {
       encontrou = true;
     } else {
       const textoSessao = ((mem.sessao.titulo || "") + " " + (mem.sessao.descricao || "")).toLowerCase();
@@ -228,15 +243,13 @@ buscaGeral.addEventListener("input", () => {
 
     sessao.style.display = encontrou ? "" : "none";
 
-    // destacar palavra em negrito
-    if (encontrou && termo) {
+    // destacar palavra em azul
+    if (encontrou && detalhe && mem.carregado) {
       detalhe.classList.remove("oculto");
-      detalhe.querySelectorAll(".proposicao, .resultado, .votos, .video, strong, a").forEach(el => {
-        const original = el.dataset.textoOriginal || el.textContent;
-        const regex = new RegExp(`(${termo})`, "gi");
-        el.innerHTML = original.replace(regex, "<strong>$1</strong>");
+      detalhe.querySelectorAll(".proposicao").forEach(pHtml => {
+        aplicarDestaque(pHtml, termoAtual);
       });
-    } else if (!termo) {
+    } else if (!termoAtual && detalhe) {
       detalhe.classList.add("oculto");
     }
   });
