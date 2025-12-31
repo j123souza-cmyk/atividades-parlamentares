@@ -27,6 +27,11 @@ select, input {
 
 .evento:hover { background: #f2f2f2; }
 
+.contem-termo {
+  background: #fff3cd; /* fundo amarelo claro */
+  border-left: 4px solid #ff9800; /* borda laranja */
+}
+
 .detalhe {
   margin-top: 8px;
   padding: 10px;
@@ -49,12 +54,6 @@ select, input {
 .highlight {
   font-weight: bold;
   color: red;
-}
-
-.found {
-  margin-bottom: 10px;
-  font-weight: bold;
-  color: green;
 }
 </style>
 </head>
@@ -135,6 +134,7 @@ async function carregarSessoes() {
     : "Nenhuma sessão encontrada.";
 
   sessoes.forEach(criarSessao);
+  aplicarBusca(); // aplica busca caso já tenha texto digitado
 }
 
 /* =====================
@@ -162,24 +162,20 @@ function abrirSessao(ev, bloco) {
   const box = document.getElementById(`det-${ev.id}`);
   box.classList.toggle("oculto");
 
-  if (box.dataset.carregado) {
-    // reaplica destaque caso já carregada
-    destacarTermo(box);
-    return;
-  }
+  if (box.dataset.carregado) return;
 
   box.innerHTML = "Carregando votações…";
 
   fetch(`${BASE}/eventos/${ev.id}/votacoes`)
     .then(r => r.json())
-    .then(res => carregarDetalhes(ev, res.dados || [], box))
+    .then(res => carregarDetalhes(ev, res.dados || [], box, bloco))
     .catch(() => box.innerText = "Erro ao carregar votações.");
 }
 
 /* =====================
-   DETALHES COM DESTAQUE
+   DETALHES COM VOTAÇÕES
 ===================== */
-async function carregarDetalhes(ev, votacoes, box) {
+async function carregarDetalhes(ev, votacoes, box, blocoSessao) {
   let html = `
     <strong>Sessão para votação de propostas legislativas</strong><br><br>
     <strong>Local:</strong> Plenário da Câmara dos Deputados<br>
@@ -224,54 +220,66 @@ async function carregarDetalhes(ev, votacoes, box) {
   }
 
   box.dataset.carregado = "1";
-
-  // reaplica destaque ao abrir
-  destacarTermo(box);
-}
-
-/* =====================
-   FUNÇÃO DE DESTAQUE
-===================== */
-function destacarTermo(box) {
-  const termo = buscaGeral.value.trim();
-  if (!termo) return;
-
-  let encontrou = false;
-  const regex = new RegExp(`(${termo})`, "gi");
-
-  box.querySelectorAll(".proposicao").forEach(p => {
-    p.innerHTML = p.innerHTML.replace(/<span class="highlight">|<\/span>/gi, ""); // remove antigos
-    if (p.innerText.toLowerCase().includes(termo.toLowerCase())) {
-      p.innerHTML = p.innerHTML.replace(regex, '<span class="highlight">$1</span>');
-      encontrou = true;
-    }
-  });
-
-  // adiciona sinalização no topo da sessão se encontrou
-  const avisoExistente = box.querySelector(".found");
-  if (encontrou && !avisoExistente) {
-    const aviso = document.createElement("div");
-    aviso.className = "found";
-    aviso.innerText = `🔍 Palavra "${termo}" encontrada nesta sessão!`;
-    const containerProps = box.querySelector(".lista-props");
-    box.insertBefore(aviso, containerProps);
-  } else if (!encontrou && avisoExistente) {
-    avisoExistente.remove();
-  }
+  aplicarBusca(); // reaplica destaque
 }
 
 /* =====================
    BUSCA DE TEXTO
 ===================== */
-buscaGeral.addEventListener("input", () => {
+function aplicarBusca() {
+  const termo = buscaGeral.value.trim();
+  if (!termo) {
+    document.querySelectorAll(".evento").forEach(sessao => {
+      sessao.classList.remove("contem-termo");
+    });
+    return;
+  }
+
+  const regex = new RegExp(`(${termo})`, "gi");
+
   document.querySelectorAll(".evento").forEach(sessao => {
-    sessao.style.display = ""; // mantém todas visíveis
-    const box = sessao.querySelector(".detalhe");
-    if (box.dataset.carregado) {
-      destacarTermo(box); // reaplica destaque em sessões já carregadas
+    const detalhe = sessao.querySelector(".detalhe");
+
+    // adiciona destaque na sessão se o termo estiver no conteúdo
+    const textoSessao = sessao.querySelector("strong").innerText.toLowerCase();
+    const textoDetalhe = detalhe ? detalhe.innerText.toLowerCase() : "";
+    const contem = textoSessao.includes(termo.toLowerCase()) || textoDetalhe.includes(termo.toLowerCase());
+
+    if (contem) {
+      sessao.classList.add("contem-termo");
+    } else {
+      sessao.classList.remove("contem-termo");
+    }
+
+    // remove destaques antigos dentro da sessão
+    detalhe?.querySelectorAll(".highlight").forEach(h => {
+      const parent = h.parentNode;
+      parent.replaceChild(document.createTextNode(h.innerText), h);
+      parent.normalize();
+    });
+
+    // aplica destaque em vermelho apenas se a sessão estiver aberta
+    if (detalhe && !detalhe.classList.contains("oculto") && contem) {
+      detalhe.querySelectorAll(".proposicao").forEach(p => {
+        const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT, null, false);
+        let node;
+        const nodesToReplace = [];
+        while (node = walker.nextNode()) {
+          if (node.nodeValue.toLowerCase().includes(termo.toLowerCase())) {
+            nodesToReplace.push(node);
+          }
+        }
+        nodesToReplace.forEach(textNode => {
+          const span = document.createElement('span');
+          span.innerHTML = textNode.nodeValue.replace(regex, '<span class="highlight">$1</span>');
+          textNode.parentNode.replaceChild(span, textNode);
+        });
+      });
     }
   });
-});
+}
+
+buscaGeral.addEventListener("input", aplicarBusca);
 
 /* =====================
    EVENTOS
