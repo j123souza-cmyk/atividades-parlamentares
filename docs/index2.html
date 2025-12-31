@@ -27,9 +27,9 @@ select, input {
 
 .evento:hover { background: #f2f2f2; }
 
-.contem-termo {
-  background: #fff3cd; /* fundo amarelo claro */
-  border-left: 4px solid #ff9800; /* borda laranja */
+.evento.contem-termo {
+  background: #fff8e1;
+  border-left: 5px solid #ff9800;
 }
 
 .detalhe {
@@ -134,7 +134,7 @@ async function carregarSessoes() {
     : "Nenhuma sessão encontrada.";
 
   sessoes.forEach(criarSessao);
-  aplicarBusca(); // aplica busca caso já tenha texto digitado
+  aplicarBusca(); // aplica busca imediata caso já tenha texto digitado
 }
 
 /* =====================
@@ -191,12 +191,15 @@ async function carregarDetalhes(ev, votacoes, box, blocoSessao) {
   box.innerHTML = html;
 
   const containerProps = box.querySelector(".lista-props");
+  let contadorVotacoes = 0;
 
   for (const v of votacoes) {
     const resp = await fetch(`${BASE}/votacoes/${v.id}`);
     const d = await resp.json();
     const voto = d.dados;
     if (!voto?.proposicoesAfetadas) continue;
+
+    contadorVotacoes++;
 
     const resultado = voto.resultado || voto.descricao || "Resultado não informado";
     const resumoVotos = voto.resumoVotacao || "";
@@ -220,7 +223,7 @@ async function carregarDetalhes(ev, votacoes, box, blocoSessao) {
   }
 
   box.dataset.carregado = "1";
-  aplicarBusca(); // reaplica destaque
+  aplicarBusca(); // reaplica destaque após abrir sessão
 }
 
 /* =====================
@@ -228,27 +231,21 @@ async function carregarDetalhes(ev, votacoes, box, blocoSessao) {
 ===================== */
 function aplicarBusca() {
   const termo = buscaGeral.value.trim();
-  if (!termo) {
-    document.querySelectorAll(".evento").forEach(sessao => {
-      sessao.classList.remove("contem-termo");
-    });
-    return;
-  }
-
-  const regex = new RegExp(`(${termo})`, "gi");
+  const regex = termo ? new RegExp(`(${termo})`, "gi") : null;
 
   document.querySelectorAll(".evento").forEach(sessao => {
     const detalhe = sessao.querySelector(".detalhe");
-
-    // adiciona destaque na sessão se o termo estiver no conteúdo
     const textoSessao = sessao.querySelector("strong").innerText.toLowerCase();
     const textoDetalhe = detalhe ? detalhe.innerText.toLowerCase() : "";
-    const contem = textoSessao.includes(termo.toLowerCase()) || textoDetalhe.includes(termo.toLowerCase());
 
-    if (contem) {
+    // aplica destaque na linha da sessão se palavra existir
+    if (termo && (textoSessao.includes(termo.toLowerCase()) || textoDetalhe.includes(termo.toLowerCase()))) {
       sessao.classList.add("contem-termo");
+      sessao.querySelector("strong").innerHTML += ` <span style="color:red;">🔍 Palavra encontrada</span>`;
     } else {
       sessao.classList.remove("contem-termo");
+      // remove sinalização anterior
+      sessao.querySelector("strong").innerHTML = sessao.querySelector("strong").innerText;
     }
 
     // remove destaques antigos dentro da sessão
@@ -259,7 +256,7 @@ function aplicarBusca() {
     });
 
     // aplica destaque em vermelho apenas se a sessão estiver aberta
-    if (detalhe && !detalhe.classList.contains("oculto") && contem) {
+    if (detalhe && !detalhe.classList.contains("oculto") && regex) {
       detalhe.querySelectorAll(".proposicao").forEach(p => {
         const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT, null, false);
         let node;
