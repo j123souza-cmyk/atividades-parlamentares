@@ -80,10 +80,10 @@ const lista = document.getElementById("lista");
 const seletorPeriodo = document.getElementById("periodo");
 const buscaGeral = document.getElementById("buscaGeral");
 
-let sessoesMemoria = []; // guarda dados de sessões e proposições para busca
+let sessoesMemoria = []; // Guarda sessões e proposições
 
 /* =====================
-   BUSCAR SESSÕES
+   CARREGAR SESSÕES
 ===================== */
 async function carregarSessoes() {
   lista.innerHTML = "";
@@ -116,9 +116,7 @@ async function carregarSessoes() {
       const texto = ((ev.titulo || "") + (ev.descricao || "")).toLowerCase();
       if (
         texto.includes("sessão") &&
-        !texto.includes("audiência") &&
-        !texto.includes("mesa") &&
-        !texto.includes("seminário")
+        texto.includes("deliberativa")
       ) {
         sessoes.push(ev);
       }
@@ -130,15 +128,16 @@ async function carregarSessoes() {
     ? `Sessões encontradas: ${sessoes.length}`
     : "Nenhuma sessão encontrada.";
 
-  // Carrega votações de cada sessão para memória
-  for (const ev of sessoes) {
-    sessoesMemoria.push({ sessao: ev, proposicoes: [] });
-    fetch(`${BASE}/eventos/${ev.id}/votacoes`)
-      .then(r => r.json())
-      .then(async res => {
-        const votacoes = res.dados || [];
-        const props = [];
-        for (const v of votacoes) {
+  // Carrega todas as proposições de cada sessão antes de exibir
+  await Promise.all(
+    sessoes.map(async (ev) => {
+      const votacoesResp = await fetch(`${BASE}/eventos/${ev.id}/votacoes`);
+      const votacoesJson = await votacoesResp.json();
+      const votacoes = votacoesJson.dados || [];
+      const props = [];
+
+      for (const v of votacoes) {
+        try {
           const respDetalhe = await fetch(`${BASE}/votacoes/${v.id}`);
           const d = await respDetalhe.json();
           const voto = d.dados;
@@ -154,17 +153,21 @@ async function carregarSessoes() {
               resumoVotos: voto.resumoVotacao || ""
             });
           });
+        } catch(e) {
+          console.error("Erro ao buscar votação:", e);
         }
-        const idx = sessoesMemoria.findIndex(s => s.sessao.id === ev.id);
-        if (idx >= 0) sessoesMemoria[idx].proposicoes = props;
-      });
-  }
+      }
 
+      sessoesMemoria.push({ sessao: ev, proposicoes: props });
+    })
+  );
+
+  // Agora todas as proposições estão carregadas, exibe as sessões
   sessoes.forEach(criarSessao);
 }
 
 /* =====================
-   LISTAGEM
+   CRIAR SESSÃO
 ===================== */
 function criarSessao(ev) {
   const div = document.createElement("div");
@@ -231,7 +234,7 @@ function abrirSessao(ev) {
 }
 
 /* =====================
-   BUSCA COM DESTAQUE E ABERTURA
+   BUSCA
 ===================== */
 buscaGeral.addEventListener("input", () => {
   const termo = buscaGeral.value.trim();
@@ -259,10 +262,8 @@ buscaGeral.addEventListener("input", () => {
       }
     }
 
-    // Exibir ou ocultar sessão
     sessao.style.display = encontrou ? "" : "none";
 
-    // Se encontrou, abrir automaticamente e destacar
     if (encontrou && termo) {
       detalhe.classList.remove("oculto");
       detalhe.querySelectorAll(".proposicao, .resultado, .votos, .video, strong, a").forEach(el => {
