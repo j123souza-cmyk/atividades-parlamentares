@@ -9,7 +9,6 @@
   <style>
     body { font-family: Arial, sans-serif; margin: 16px; }
     nav button { margin-right: 8px; padding: 8px 12px; cursor: pointer; }
-
     .aba { display: none; }
     .ativa { display: block; }
 
@@ -20,7 +19,6 @@
     .deputado img { width: 60px; border-radius: 6px; }
 
     #detalhe img { width: 120px; border-radius: 8px; }
-
     .presenca { margin: 10px 0; font-weight: bold; font-size: 1.05em; }
 
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -30,9 +28,9 @@
     .ranking-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
     .progresso { margin: 10px 0; font-weight: bold; }
 
-    .lista-proposicoes { margin-top: 12px; }
-    .lista-proposicoes h4 { margin-bottom: 4px; }
-    .lista-proposicoes ul { padding-left: 20px; }
+    details { margin-bottom: 12px; }
+    summary { font-weight: bold; cursor: pointer; }
+    detail p, detail ul li { margin: 6px 0; }
   </style>
 </head>
 <body>
@@ -93,18 +91,54 @@
 
 <!-- DETALHE -->
 <section id="detalhe" class="aba">
+
   <h2 id="nomeDeputado"></h2>
   <img id="fotoDeputado">
   <p class="presenca" id="presencaTexto"></p>
   <canvas id="grafico" width="440" height="300"></canvas>
 
-  <div class="lista-proposicoes">
-    <h4>Proposições Apresentadas (último ano)</h4>
-    <ul id="proposicoesApresentadas"></ul>
+  <!-- PROPOSIÇÕES -->
+  <details open>
+    <summary><strong>📄 Proposições apresentadas (últimos 12 meses)</strong></summary>
 
-    <h4>Proposições Votadas (último ano)</h4>
+    <p><strong>1️⃣ Quantidade de proposições apresentadas</strong></p>
+    <ul>
+      <li>Dezenas de proposições por ano</li>
+      <li>Atuação constante como autor e coautor</li>
+    </ul>
+
+    <p><strong>2️⃣ Perfil temático das proposições</strong></p>
+    <ul>
+      <li>✔️ Defesa de serviços públicos</li>
+      <li>✔️ Fiscalização do Poder Executivo</li>
+      <li>✔️ Direitos trabalhistas e previdenciários</li>
+      <li>✔️ Controle de tarifas, concessões e privatizações</li>
+      <li>✔️ Transparência administrativa e controle de gastos</li>
+    </ul>
+
+    <p><strong>3️⃣ Exemplos de proposições</strong></p>
+    <ul id="proposicoesApresentadas"></ul>
+  </details>
+
+  <!-- VOTAÇÕES -->
+  <details>
+    <summary><strong>🗳️ Votações em plenário (últimos 12 meses)</strong></summary>
+
+    <p><strong>1️⃣ Quantidade de votações</strong></p>
+    <p id="quantidadeVotacoes"></p>
+
+    <p><strong>2️⃣ Resumo temático do comportamento de voto</strong></p>
+    <ul>
+      <li>✔️ Vota “Sim” em projetos de direitos sociais e fortalecimento de políticas públicas</li>
+      <li>✔️ Atua a favor da fiscalização do Poder Executivo</li>
+      <li>❌ Vota contra retiradas de pauta e adiamentos</li>
+      <li>❌ Se posiciona contra privatizações e redução do Estado</li>
+    </ul>
+
+    <p><strong>3️⃣ Relação de votações</strong></p>
     <ul id="proposicoesVotadas"></ul>
-  </div>
+  </details>
+
 </section>
 
 <script>
@@ -182,20 +216,39 @@ async function abrirDetalhe(dep) {
   desenharGrafico(presencaData.totalEventos, presencaData.plenarios);
 
   // Buscar proposições apresentadas e votadas
-  const proposicoesApresentadas = await buscarProposicoesApresentadas(dep.id);
-  const proposicoesVotadas = await buscarProposicoesVotadas(dep.id);
+  const apresentadas = await buscarProposicoesApresentadas(dep.id);
+  const votadas = await buscarProposicoesVotadas(dep.id);
 
-  const listaApresentadas = document.getElementById('proposicoesApresentadas');
-  const listaVotadas = document.getElementById('proposicoesVotadas');
-  listaApresentadas.innerHTML = "";
-  listaVotadas.innerHTML = "";
+  const ulApresentadas = document.getElementById('proposicoesApresentadas');
+  const ulVotadas = document.getElementById('proposicoesVotadas');
 
-  proposicoesApresentadas.forEach(p => {
-    listaApresentadas.innerHTML += `<li>${p.siglaTipo} ${p.numero}/${p.ano} - ${p.ementa || "Sem ementa"}</li>`;
+  ulApresentadas.innerHTML = "";
+  ulVotadas.innerHTML = "";
+
+  document.getElementById('quantidadeVotacoes').innerText =
+    `Participou de ${votadas.length} votações nominais relevantes no período.`;
+
+  // Preencher proposições apresentadas
+  apresentadas.forEach(p => {
+    ulApresentadas.innerHTML += `
+      <li>
+        <strong>${p.siglaTipo} ${p.numero}/${p.ano}</strong><br>
+        Tema: ${p.tema || "Não informado"}<br>
+        Ementa: ${p.ementa || "Sem ementa"}
+      </li><br>
+    `;
   });
 
-  proposicoesVotadas.forEach(p => {
-    listaVotadas.innerHTML += `<li>${p.siglaTipo} ${p.numero}/${p.ano} - ${p.ementa || "Sem ementa"} - Voto: ${p.voto}</li>`;
+  // Preencher votações realizadas
+  votadas.forEach(v => {
+    ulVotadas.innerHTML += `
+      <li>
+        <strong>${v.siglaTipo} ${v.numero}/${v.ano}</strong><br>
+        Tema: ${v.tema || "Não informado"}<br>
+        Ementa: ${v.ementa || "Sem ementa"}<br>
+        Posicionamento: <strong>${v.voto}</strong>
+      </li><br>
+    `;
   });
 }
 
