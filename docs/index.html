@@ -4,12 +4,9 @@
 <meta charset="UTF-8">
 <title>Atividades Parlamentares</title>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-
 <style>
 body { font-family: Arial, sans-serif; margin: 16px; }
 nav button { margin-right: 8px; padding: 8px 12px; cursor: pointer; }
-
 .aba { display: none; }
 .ativa { display: block; }
 
@@ -20,15 +17,11 @@ nav button { margin-right: 8px; padding: 8px 12px; cursor: pointer; }
   padding: 8px 0;
   cursor: pointer;
 }
-
 .deputado img { width: 60px; border-radius: 6px; }
-
-#detalhe img { width: 120px; border-radius: 8px; }
 
 details summary {
   cursor: pointer;
   font-weight: bold;
-  margin-top: 6px;
 }
 </style>
 </head>
@@ -50,17 +43,22 @@ details summary {
 <section id="detalhe" class="aba">
   <h2 id="nomeDeputado"></h2>
   <img id="fotoDeputado">
-
-  <h3>📄 Proposições apresentadas (últimos 12 meses)</h3>
+  <h3>📄 Proposições apresentadas</h3>
   <ul id="proposicoesApresentadas"></ul>
 
-  <h3>📑 Votações (últimos 12 meses)</h3>
+  <h3>📑 Votações</h3>
   <ul id="proposicoesVotadas"></ul>
 </section>
 
 <script>
 const BASE = "https://dadosabertos.camara.leg.br/api/v2";
-let deputados = [];
+
+const listaDeputadosEl = document.getElementById("listaDeputados");
+const statusEl = document.getElementById("status");
+const nomeDeputadoEl = document.getElementById("nomeDeputado");
+const fotoDeputadoEl = document.getElementById("fotoDeputado");
+const proposicoesApresentadasEl = document.getElementById("proposicoesApresentadas");
+const proposicoesVotadasEl = document.getElementById("proposicoesVotadas");
 
 function mostrar(id) {
   document.querySelectorAll('.aba').forEach(a => a.classList.remove('ativa'));
@@ -71,10 +69,64 @@ function mostrar(id) {
 fetch(`${BASE}/deputados?ordem=ASC&ordenarPor=nome`)
   .then(r => r.json())
   .then(json => {
-    const statusEl = document.getElementById('status');
-    if (statusEl) statusEl.remove();
-
-    deputados = json.dados || [];
-    renderizarLista(deputados);
+    statusEl.remove();
+    json.dados.forEach(dep => {
+      const div = document.createElement("div");
+      div.className = "deputado";
+      div.innerHTML = `
+        <img src="${dep.urlFoto}">
+        <div>
+          <strong>${dep.nome}</strong><br>
+          ${dep.siglaPartido} - ${dep.siglaUf}
+        </div>
+      `;
+      div.onclick = () => abrirDetalhe(dep);
+      listaDeputadosEl.appendChild(div);
+    });
   })
   .catch(err => {
+    statusEl.innerText = "Erro ao carregar deputados";
+    console.error(err);
+  });
+
+/* ===== DETALHE ===== */
+async function abrirDetalhe(dep) {
+  mostrar("detalhe");
+  nomeDeputadoEl.innerText = dep.nome;
+  fotoDeputadoEl.src = dep.urlFoto;
+
+  carregarProposicoes(dep.id);
+  carregarVotacoes(dep.id);
+}
+
+/* ===== PROPOSIÇÕES ===== */
+async function carregarProposicoes(id) {
+  proposicoesApresentadasEl.innerHTML = "<li>Carregando...</li>";
+  const r = await fetch(`${BASE}/proposicoes?autor=id:${id}&itens=10`);
+  const dados = (await r.json()).dados || [];
+  proposicoesApresentadasEl.innerHTML = "";
+  dados.forEach(p => {
+    proposicoesApresentadasEl.innerHTML += `
+      <li>
+        <details>
+          <summary>${p.siglaTipo} ${p.numero}/${p.ano}</summary>
+          <p>${p.ementa || "Sem ementa"}</p>
+        </details>
+      </li>`;
+  });
+}
+
+/* ===== VOTAÇÕES ===== */
+async function carregarVotacoes(id) {
+  proposicoesVotadasEl.innerHTML = "<li>Carregando...</li>";
+  const r = await fetch(`${BASE}/deputados/${id}/votacoes?itens=10`);
+  const dados = (await r.json()).dados || [];
+  proposicoesVotadasEl.innerHTML = "";
+  dados.forEach(v => {
+    proposicoesVotadasEl.innerHTML += `<li>${v.data} – ${v.descricao}</li>`;
+  });
+}
+</script>
+
+</body>
+</html>
