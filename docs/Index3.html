@@ -1,246 +1,190 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-  <meta charset="UTF-8">
-  <title>Atividades Parlamentares</title>
+<meta charset="UTF-8">
+<title>Atividades Parlamentares</title>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
-  <style>
-    body { font-family: Arial, sans-serif; margin: 16px; }
-    nav button { margin-right: 8px; padding: 8px 12px; cursor: pointer; }
+<style>
+body { font-family: Arial, sans-serif; margin:16px; }
+nav button { margin-right:8px; padding:8px 12px; cursor:pointer; }
 
-    .aba { display: none; }
-    .ativa { display: block; }
+.aba { display:none; }
+.ativa { display:block; }
 
-    .filtros { margin: 12px 0; }
-    .filtros input, .filtros select { padding: 6px; margin-right: 6px; }
+.deputado {
+  display:flex; gap:10px; border-bottom:1px solid #ddd;
+  padding:8px 0; cursor:pointer;
+}
+.deputado img { width:60px; border-radius:6px; }
 
-    .deputado { display: flex; gap: 10px; border-bottom: 1px solid #ddd; padding: 8px 0; cursor: pointer; }
-    .deputado img { width: 60px; border-radius: 6px; }
+details {
+  border:1px solid #ddd;
+  border-radius:6px;
+  padding:8px;
+  margin-bottom:8px;
+  background:#fafafa;
+}
 
-    #detalhe img { width: 120px; border-radius: 8px; }
+summary {
+  cursor:pointer;
+  font-weight:bold;
+  list-style:none;
+}
 
-    .presenca { margin: 10px 0; font-weight: bold; font-size: 1.05em; }
+summary::before {
+  content:"🔗 ";
+}
 
-    ul { padding-left: 18px; }
-    li { margin-bottom: 6px; }
+.presenca { margin:10px 0; font-weight:bold; }
 
-    details summary {
-      cursor: pointer;
-      font-weight: bold;
-      margin-top: 6px;
-    }
-  </style>
+</style>
 </head>
+
 <body>
 
 <h1>Atividades Parlamentares</h1>
 
 <nav>
-  <button onclick="mostrar('lista')">Deputados</button>
-  <button onclick="mostrar('detalhe')">Detalhes</button>
+<button onclick="mostrar('lista')">Deputados</button>
+<button onclick="mostrar('detalhe')">Detalhes</button>
 </nav>
 
 <section id="lista" class="aba ativa">
-  <p id="status">Carregando deputados...</p>
-
-  <div class="filtros">
-    <input type="text" id="filtroNome" placeholder="Filtrar por nome" oninput="aplicarFiltros()">
-    <select id="filtroPartido" onchange="aplicarFiltros()">
-      <option value="">Partido</option>
-    </select>
-    <select id="filtroUf" onchange="aplicarFiltros()">
-      <option value="">UF</option>
-    </select>
-  </div>
-
-  <div id="listaDeputados"></div>
+<div id="listaDeputados"></div>
 </section>
 
 <section id="detalhe" class="aba">
-  <h2 id="nomeDeputado"></h2>
-  <img id="fotoDeputado">
-  <p class="presenca" id="presencaTexto"></p>
-  <canvas id="grafico" width="440" height="300"></canvas>
+<h2 id="nomeDeputado"></h2>
+<img id="fotoDeputado" width="120">
+<p class="presenca" id="presencaTexto"></p>
+<canvas id="grafico" width="420" height="280"></canvas>
 
-  <h3>📄 Proposições apresentadas (últimos 12 meses)</h3>
-  <ul id="proposicoesApresentadas"></ul>
+<h3>📄 Proposições Apresentadas</h3>
+<div id="proposicoesApresentadas"></div>
 
-  <h3>📑 Votações (últimos 12 meses)</h3>
-  <ul id="proposicoesVotadas"></ul>
+<h3>📑 Relação de Votações</h3>
+<div id="proposicoesVotadas"></div>
 </section>
 
 <script>
 const BASE = "https://dadosabertos.camara.leg.br/api/v2";
 let deputados = [];
-let deputadosFiltrados = [];
 let chart = null;
 
-function mostrar(id) {
-  document.querySelectorAll('.aba').forEach(a => a.classList.remove('ativa'));
+function mostrar(id){
+  document.querySelectorAll('.aba').forEach(a=>a.classList.remove('ativa'));
   document.getElementById(id).classList.add('ativa');
 }
 
 /* LISTA */
-fetch(`${BASE}/deputados?ordem=ASC&ordenarPor=nome`)
-  .then(r => r.json())
-  .then(json => {
-    status.remove();
-    deputados = json.dados;
-    deputadosFiltrados = deputados;
-    preencherFiltros(deputados);
-    renderizarLista(deputados);
+fetch(`${BASE}/deputados?ordenarPor=nome`)
+.then(r=>r.json())
+.then(j=>{
+  deputados=j.dados;
+  const el=document.getElementById('listaDeputados');
+  deputados.forEach(d=>{
+    const div=document.createElement('div');
+    div.className='deputado';
+    div.innerHTML=`
+      <img src="${d.urlFoto}">
+      <div>
+        <strong>${d.nome}</strong><br>
+        ${d.siglaPartido} - ${d.siglaUf}
+      </div>`;
+    div.onclick=()=>abrirDetalhe(d);
+    el.appendChild(div);
   });
+});
 
-function preencherFiltros(lista) {
-  [...new Set(lista.map(d => d.siglaPartido))].sort()
-    .forEach(p => filtroPartido.innerHTML += `<option value="${p}">${p}</option>`);
-  [...new Set(lista.map(d => d.siglaUf))].sort()
-    .forEach(u => filtroUf.innerHTML += `<option value="${u}">${u}</option>`);
-}
-
-function aplicarFiltros() {
-  const nome = filtroNome.value.toLowerCase();
-  const partido = filtroPartido.value;
-  const uf = filtroUf.value;
-
-  deputadosFiltrados = deputados.filter(d =>
-    d.nome.toLowerCase().includes(nome) &&
-    (!partido || d.siglaPartido === partido) &&
-    (!uf || d.siglaUf === uf)
-  );
-
-  renderizarLista(deputadosFiltrados);
-}
-
-function renderizarLista(lista) {
-  listaDeputados.innerHTML = "";
-  lista.forEach(dep => {
-    const div = document.createElement('div');
-    div.className = 'deputado';
-    div.innerHTML = `
-      <img src="${dep.urlFoto}">
-      <div><strong>${dep.nome}</strong><br>${dep.siglaPartido} - ${dep.siglaUf}</div>
-    `;
-    div.onclick = () => abrirDetalhe(dep);
-    listaDeputados.appendChild(div);
-  });
-}
-
-/* DETALHE */
-async function abrirDetalhe(dep) {
+async function abrirDetalhe(dep){
   mostrar('detalhe');
-  nomeDeputado.innerText = dep.nome;
-  fotoDeputado.src = dep.urlFoto;
+  nomeDeputado.innerText=dep.nome;
+  fotoDeputado.src=dep.urlFoto;
 
-  const presencaData = await calcularPresenca(dep.id);
-  presencaTexto.innerText = `Presença em plenário: ${presencaData.presenca}%`;
-  desenharGrafico(presencaData.total, presencaData.plenario);
+  const pres=await calcularPresenca(dep.id);
+  presencaTexto.innerText=`Presença estimada: ${pres.presenca}%`;
+  desenharGrafico(pres.total, pres.plenario);
 
-  renderizarListaAccordion(
-    await buscarProposicoesApresentadas(dep.id),
-    proposicoesApresentadas,
-    true
-  );
+  const apres=await buscarProposicoesApresentadas(dep.id);
+  const votos=await buscarProposicoesVotadas(dep.id);
 
-  renderizarListaAccordion(
-    await buscarProposicoesVotadas(dep.id),
-    proposicoesVotadas,
-    false
-  );
+  renderAcordion(apres, 'proposicoesApresentadas', false);
+  renderAcordion(votos, 'proposicoesVotadas', true);
+}
+
+/* ACORDION */
+function renderAcordion(lista, alvo, isVotacao){
+  const container=document.getElementById(alvo);
+  container.innerHTML="";
+
+  if(lista.length===0){
+    container.innerHTML="<em>Nenhum registro no período.</em>";
+    return;
+  }
+
+  lista.forEach(p=>{
+    const el=document.createElement('details');
+    el.innerHTML=`
+      <summary>${p.siglaTipo} ${p.numero}/${p.ano}</summary>
+      <p><strong>Ementa:</strong> ${p.ementa||"Não informada"}</p>
+      ${isVotacao ? `<p><strong>Posicionamento:</strong> ${p.voto}</p>` : ""}
+    `;
+    container.appendChild(el);
+  });
 }
 
 /* PRESENÇA */
-async function calcularPresenca(depId) {
-  const di = new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString().slice(0,10);
-  const df = new Date().toISOString().slice(0,10);
-
-  const r = await fetch(`${BASE}/deputados/${depId}/eventos?dataInicio=${di}&dataFim=${df}&itens=1000`);
-  const eventos = (await r.json()).dados || [];
-
-  const plenario = eventos.filter(e =>
-    (e.descricao || '').toLowerCase().includes('plenário')
-  ).length;
-
-  return {
-    total: eventos.length,
-    plenario,
-    presenca: eventos.length ? Math.round((plenario / eventos.length) * 100) : 0
-  };
+async function calcularPresenca(id){
+  const fim=new Date();
+  const ini=new Date(); ini.setFullYear(fim.getFullYear()-1);
+  const r=await fetch(`${BASE}/deputados/${id}/eventos?dataInicio=${ini.toISOString().slice(0,10)}&dataFim=${fim.toISOString().slice(0,10)}&itens=1000`);
+  const ev=(await r.json()).dados||[];
+  const pl=ev.filter(e=>(e.descricao||"").toLowerCase().includes("plenário")).length;
+  return { presenca: ev.length?Math.round(pl/ev.length*100):0, total:ev.length, plenario:pl };
 }
 
 /* PROPOSIÇÕES APRESENTADAS */
-async function buscarProposicoesApresentadas(depId) {
-  const di = new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString().slice(0,10);
-  const df = new Date().toISOString().slice(0,10);
-
-  const r = await fetch(
-    `${BASE}/proposicoes?autor=id:${depId}&dataInicio=${di}&dataFim=${df}&ordenarPor=dataApresentacao&ordem=DESC&itens=20`
-  );
-  return (await r.json()).dados || [];
+async function buscarProposicoesApresentadas(id){
+  const r=await fetch(`${BASE}/proposicoes?autorId=${id}&itens=20`);
+  return (await r.json()).dados||[];
 }
 
 /* VOTAÇÕES */
-async function buscarProposicoesVotadas(depId) {
-  const di = new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString().slice(0,10);
-  const df = new Date().toISOString().slice(0,10);
+async function buscarProposicoesVotadas(id){
+  const r=await fetch(`${BASE}/deputados/${id}/votacoes?itens=200`);
+  const dados=(await r.json()).dados||[];
+  const lista=[];
 
-  const r = await fetch(`${BASE}/deputados/${depId}/votacoes?dataInicio=${di}&dataFim=${df}&itens=50`);
-  const votacoes = (await r.json()).dados || [];
-  const resultado = [];
+  for(const v of dados){
+    const det=await fetch(`${BASE}/votacoes/${v.id}`);
+    const vd=(await det.json()).dados;
+    if(!vd) continue;
 
-  for (const v of votacoes) {
-    const vr = await fetch(`${BASE}/votacoes/${v.id}`);
-    const vd = (await vr.json()).dados;
-    if (!vd) continue;
+    const voto=vd.deputadosVotos?.find(d=>d.deputadoId==id);
+    if(!voto) continue;
 
-    const voto = vd.deputadosVotos.find(d => d.deputadoId == depId);
-    if (!voto) continue;
-
-    for (const p of vd.proposicoesAfetadas || []) {
-      let ementa = "Ementa não disponível";
-      try {
-        const pr = await fetch(`${BASE}/proposicoes/${p.id}`);
-        ementa = (await pr.json()).dados?.ementa || ementa;
-      } catch {}
-
-      resultado.push({
-        titulo: `${p.siglaTipo} ${p.numero}/${p.ano}`,
-        ementa,
-        voto: voto.voto
+    vd.proposicoesAfetadas?.forEach(p=>{
+      lista.push({
+        siglaTipo:p.siglaTipo,
+        numero:p.numero,
+        ano:p.ano,
+        ementa:p.ementa,
+        voto:voto.voto
       });
-    }
+    });
   }
-
-  return resultado;
-}
-
-/* ACCORDION */
-function renderizarListaAccordion(lista, el, isApresentada) {
-  el.innerHTML = "";
-  lista.forEach(p => {
-    el.innerHTML += `
-      <li>
-        <details>
-          <summary>${p.siglaTipo || p.titulo} ${p.numero || ""}/${p.ano || ""}</summary>
-          <p><strong>Ementa:</strong> ${p.ementa}</p>
-          ${p.voto ? `<p><strong>Voto:</strong> ${p.voto}</p>` : ""}
-        </details>
-      </li>
-    `;
-  });
+  return lista;
 }
 
 /* GRÁFICO */
-function desenharGrafico(eventos, plenarios) {
-  if (chart) chart.destroy();
-  chart = new Chart(grafico, {
-    type: 'bar',
-    data: {
-      labels: ['Eventos', 'Plenário'],
-      datasets: [{ data: [eventos, plenarios] }]
-    }
+function desenharGrafico(total, pl){
+  if(chart) chart.destroy();
+  chart=new Chart(grafico,{
+    type:'bar',
+    data:{ labels:['Eventos','Plenário'], datasets:[{data:[total,pl]}] },
+    options:{ responsive:false }
   });
 }
 </script>
