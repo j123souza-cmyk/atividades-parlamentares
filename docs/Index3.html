@@ -1,165 +1,342 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
 <head>
-<meta charset="UTF-8">
-<title>Votações – Accordion</title>
+  <meta charset="UTF-8">
+  <title>Atividades Parlamentares</title>
 
-<style>
-body {
-  font-family: Arial, sans-serif;
-  margin: 20px;
-}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
-.accordion {
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  margin-bottom: 12px;
-  overflow: hidden;
-}
+  <style>
+    body { font-family: Arial, sans-serif; margin: 16px; }
+    nav button { margin-right: 8px; padding: 8px 12px; cursor: pointer; }
 
-.accordion-header {
-  background: #f2f2f2;
-  padding: 12px;
-  font-weight: bold;
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-}
+    .aba { display: none; }
+    .ativa { display: block; }
 
-.accordion-header:hover {
-  background: #e6e6e6;
-}
+    .filtros { margin: 12px 0; }
+    .filtros input, .filtros select { padding: 6px; margin-right: 6px; }
 
-.accordion-content {
-  display: none;
-  padding: 12px;
-  background: #fff;
-}
+    .deputado { display: flex; gap: 10px; border-bottom: 1px solid #ddd; padding: 8px 0; cursor: pointer; }
+    .deputado img { width: 60px; border-radius: 6px; }
 
-.accordion.active .accordion-content {
-  display: block;
-}
+    #detalhe img { width: 120px; border-radius: 8px; }
 
-.badge {
-  background: #005ea8;
-  color: #fff;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 0.85em;
-}
+    .presenca { margin: 10px 0; font-weight: bold; font-size: 1.05em; }
 
-.lista-voto {
-  margin-top: 8px;
-}
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
+    th { background: #f0f0f0; }
 
-.voto {
-  margin-bottom: 8px;
-}
+    .ranking-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .progresso { margin: 10px 0; font-weight: bold; }
 
-.sim { color: green; font-weight: bold; }
-.nao { color: red; font-weight: bold; }
-.abs { color: orange; font-weight: bold; }
-.obs { color: purple; font-weight: bold; }
-</style>
+    .lista-proposicoes { margin-top: 12px; }
+    .lista-proposicoes h4 { margin-bottom: 4px; }
+    .lista-proposicoes ul { padding-left: 20px; }
+  </style>
 </head>
-
 <body>
 
-<h2>Votações do Deputado — últimos 12 meses</h2>
+<h1>Atividades Parlamentares</h1>
 
-<!-- 1 -->
-<div class="accordion">
-  <div class="accordion-header">
-    <span>1️⃣ Votações no último ano</span>
-    <span class="badge">52</span>
+<nav>
+  <button onclick="mostrar('lista')">Deputados</button>
+  <button onclick="mostrar('ranking')">Ranking de Presença</button>
+  <button onclick="mostrar('detalhe')">Detalhes</button>
+</nav>
+
+<!-- LISTA -->
+<section id="lista" class="aba ativa">
+  <p id="status">Carregando deputados...</p>
+
+  <div class="filtros">
+    <input type="text" id="filtroNome" placeholder="Filtrar por nome" oninput="aplicarFiltros()">
+    <select id="filtroPartido" onchange="aplicarFiltros()">
+      <option value="">Partido</option>
+    </select>
+    <select id="filtroUf" onchange="aplicarFiltros()">
+      <option value="">UF</option>
+    </select>
   </div>
-  <div class="accordion-content">
-    <ul>
-      <li>✅ Sim: <strong>34</strong></li>
-      <li>❌ Não: <strong>10</strong></li>
-      <li>⚖️ Abstenção: <strong>4</strong></li>
-      <li>⛔ Obstrução: <strong>4</strong></li>
-    </ul>
-  </div>
-</div>
 
-<!-- 2 -->
-<div class="accordion">
-  <div class="accordion-header">
-    <span>2️⃣ Resumo temático das votações</span>
-  </div>
-  <div class="accordion-content">
-    <p><strong>Direitos sociais e trabalhistas</strong><br>
-    Atuação predominantemente favorável, com votos “Sim” em propostas de proteção ao emprego.</p>
+  <div id="listaDeputados"></div>
+</section>
 
-    <p><strong>Economia e orçamento</strong><br>
-    Postura crítica, com votos “Não” e obstruções em projetos de ajuste fiscal.</p>
+<!-- RANKING -->
+<section id="ranking" class="aba">
+  <p class="progresso" id="statusRanking">
+    Clique no botão para gerar o ranking com base nos filtros atuais
+  </p>
+  <button onclick="gerarRankingPresenca()">Gerar ranking</button>
 
-    <p><strong>Administração pública</strong><br>
-    Votos contrários em reformas administrativas e mudanças no regime do funcionalismo.</p>
-
-    <p><strong>Fiscalização e transparência</strong><br>
-    Atuação consistente a favor de mecanismos de controle e fiscalização.</p>
-  </div>
-</div>
-
-<!-- 3 -->
-<div class="accordion">
-  <div class="accordion-header">
-    <span>3️⃣ Relação detalhada das votações</span>
-    <span class="badge">12</span>
-  </div>
-  <div class="accordion-content">
-
-    <div class="voto">
-      <strong>
-        <a href="#" onclick="event.preventDefault()">
-          PL 2379/2023
-        </a>
-      </strong><br>
-      Tema: Direitos sociais e trabalhistas<br>
-      Voto: <span class="sim">Sim</span>
+  <div class="ranking-container">
+    <div>
+      <h3>Top 20 – Maior Presença</h3>
+      <table>
+        <thead>
+          <tr><th>#</th><th>Deputado</th><th>Partido</th><th>UF</th><th>Presença (%)</th></tr>
+        </thead>
+        <tbody id="rankingMaior"></tbody>
+      </table>
     </div>
-
-    <div class="voto">
-      <strong>
-        <a href="#" onclick="event.preventDefault()">
-          MPV 1268/2024
-        </a>
-      </strong><br>
-      Tema: Economia e orçamento<br>
-      Voto: <span class="obs">Obstrução</span>
+    <div>
+      <h3>Top 20 – Menor Presença</h3>
+      <table>
+        <thead>
+          <tr><th>#</th><th>Deputado</th><th>Partido</th><th>UF</th><th>Presença (%)</th></tr>
+        </thead>
+        <tbody id="rankingMenor"></tbody>
+      </table>
     </div>
-
-    <div class="voto">
-      <strong>
-        <a href="#" onclick="event.preventDefault()">
-          PEC 45/2023
-        </a>
-      </strong><br>
-      Tema: Administração pública<br>
-      Voto: <span class="nao">Não</span>
-    </div>
-
-    <div class="voto">
-      <strong>
-        <a href="#" onclick="event.preventDefault()">
-          PLP 93/2024
-        </a>
-      </strong><br>
-      Tema: Fiscalização e transparência<br>
-      Voto: <span class="abs">Abstenção</span>
-    </div>
-
   </div>
-</div>
+</section>
+
+<!-- DETALHE -->
+<section id="detalhe" class="aba">
+  <h2 id="nomeDeputado"></h2>
+  <img id="fotoDeputado">
+  <p class="presenca" id="presencaTexto"></p>
+  <canvas id="grafico" width="440" height="300"></canvas>
+
+  <div class="lista-proposicoes">
+    <h4>Proposições Apresentadas (último ano)</h4>
+    <ul id="proposicoesApresentadas"></ul>
+
+    <h4>Proposições Votadas (último ano)</h4>
+    <ul id="proposicoesVotadas"></ul>
+  </div>
+</section>
 
 <script>
-document.querySelectorAll('.accordion-header').forEach(header => {
-  header.addEventListener('click', () => {
-    header.parentElement.classList.toggle('active');
+const BASE = "https://dadosabertos.camara.leg.br/api/v2";
+let deputados = [];
+let deputadosFiltrados = [];
+let chart = null;
+
+function mostrar(id) {
+  document.querySelectorAll('.aba').forEach(a => a.classList.remove('ativa'));
+  document.getElementById(id).classList.add('ativa');
+}
+
+/* LISTA DE DEPUTADOS */
+fetch(${BASE}/deputados?ordem=ASC&ordenarPor=nome)
+  .then(r => r.json())
+  .then(json => {
+    const statusEl = document.getElementById('status');
+    if (statusEl) statusEl.remove();
+
+    deputados = json.dados;
+    deputadosFiltrados = deputados;
+
+    preencherFiltros(deputados);
+    renderizarLista(deputados);
   });
-});
+
+function preencherFiltros(lista) {
+  [...new Set(lista.map(d => d.siglaPartido))].sort()
+    .forEach(p => filtroPartido.innerHTML += <option value="${p}">${p}</option>);
+  [...new Set(lista.map(d => d.siglaUf))].sort()
+    .forEach(u => filtroUf.innerHTML += <option value="${u}">${u}</option>);
+}
+
+function aplicarFiltros() {
+  const nome = filtroNome.value.toLowerCase();
+  const partido = filtroPartido.value;
+  const uf = filtroUf.value;
+
+  deputadosFiltrados = deputados.filter(d =>
+    d.nome.toLowerCase().includes(nome) &&
+    (!partido || d.siglaPartido === partido) &&
+    (!uf || d.siglaUf === uf)
+  );
+
+  renderizarLista(deputadosFiltrados);
+}
+
+function renderizarLista(lista) {
+  listaDeputados.innerHTML = "";
+  lista.forEach(dep => {
+    const div = document.createElement('div');
+    div.className = 'deputado';
+    div.innerHTML = 
+      <img src="${dep.urlFoto}">
+      <div>
+        <strong>${dep.nome}</strong><br>
+        ${dep.siglaPartido} - ${dep.siglaUf}
+      </div>
+    ;
+    div.onclick = () => abrirDetalhe(dep);
+    listaDeputados.appendChild(div);
+  });
+}
+
+/* DETALHE DO DEPUTADO */
+async function abrirDetalhe(dep) {
+  mostrar('detalhe');
+  nomeDeputado.innerText = dep.nome;
+  fotoDeputado.src = dep.urlFoto;
+
+  const presencaData = await calcularPresenca(dep);
+  presencaTexto.innerText = Presença no plenário: ${presencaData.presenca}%;
+
+  desenharGrafico(presencaData.totalEventos, presencaData.plenarios);
+
+  // Buscar proposições apresentadas e votadas
+  const proposicoesApresentadas = await buscarProposicoesApresentadas(dep.id);
+  const proposicoesVotadas = await buscarProposicoesVotadas(dep.id);
+
+  const listaApresentadas = document.getElementById('proposicoesApresentadas');
+  const listaVotadas = document.getElementById('proposicoesVotadas');
+  listaApresentadas.innerHTML = "";
+  listaVotadas.innerHTML = "";
+
+  proposicoesApresentadas.forEach(p => {
+    listaApresentadas.innerHTML += <li>${p.siglaTipo} ${p.numero}/${p.ano} - ${p.ementa || "Sem ementa"}</li>;
+  });
+
+  proposicoesVotadas.forEach(p => {
+    listaVotadas.innerHTML += <li>${p.siglaTipo} ${p.numero}/${p.ano} - ${p.ementa || "Sem ementa"} - Voto: ${p.voto}</li>;
+  });
+}
+
+/* CÁLCULO DE PRESENÇA */
+async function calcularPresenca(dep) {
+  const fim = new Date();
+  const inicio = new Date();
+  inicio.setFullYear(fim.getFullYear() - 1);
+
+  const di = inicio.toISOString().slice(0,10);
+  const df = fim.toISOString().slice(0,10);
+
+  try {
+    const r = await fetch(${BASE}/deputados/${dep.id}/eventos?dataInicio=${di}&dataFim=${df}&itens=1000);
+    const j = await r.json();
+    const eventos = j.dados || [];
+
+    const plenarios = eventos.filter(e =>
+      (e.localCamara?.nome || "").toLowerCase().includes("plenário") ||
+      (e.descricao || "").toLowerCase().includes("plenário")
+    ).length;
+
+    const presenca = eventos.length > 0 ? Math.round((plenarios / eventos.length) * 100) : 0;
+
+    return { presenca, totalEventos: eventos.length, plenarios };
+  } catch {
+    return { presenca: 0, totalEventos: 0, plenarios: 0 };
+  }
+}
+
+/* PROPOSIÇÕES APRESENTADAS PELO DEPUTADO */
+async function buscarProposicoesApresentadas(deputadoId) {
+  const fim = new Date();
+  const inicio = new Date();
+  inicio.setFullYear(fim.getFullYear() - 1);
+  const di = inicio.toISOString().slice(0,10);
+  const df = fim.toISOString().slice(0,10);
+
+  const url = ${BASE}/proposicoes?autorId=${deputadoId}&dataInicio=${di}&dataFim=${df}&itens=100;
+  try {
+    const r = await fetch(url);
+    const j = await r.json();
+    return j.dados || [];
+  } catch {
+    return [];
+  }
+}
+
+/* PROPOSIÇÕES VOTADAS PELO DEPUTADO */
+async function buscarProposicoesVotadas(deputadoId) {
+  const fim = new Date();
+  const inicio = new Date();
+  inicio.setFullYear(fim.getFullYear() - 1);
+  const di = inicio.toISOString().slice(0,10);
+  const df = fim.toISOString().slice(0,10);
+
+  const eventosUrl = ${BASE}/deputados/${deputadoId}/votacoes?dataInicio=${di}&dataFim=${df}&itens=1000;
+  try {
+    const resp = await fetch(eventosUrl);
+    const dados = (await resp.json()).dados || [];
+
+    const proposicoes = [];
+
+    for (const v of dados) {
+      const votacaoDet = await fetch(${BASE}/votacoes/${v.id});
+      const vData = (await votacaoDet.json()).dados;
+      if (!vData || !vData.deputadosVotos) continue;
+
+      const votoDeputado = vData.deputadosVotos.find(d => d.deputadoId == deputadoId);
+      if (!votoDeputado) continue;
+
+      vData.proposicoesAfetadas.forEach(p => {
+        proposicoes.push({
+          siglaTipo: p.siglaTipo,
+          numero: p.numero,
+          ano: p.ano,
+          ementa: p.ementa,
+          voto: votoDeputado.voto
+        });
+      });
+    }
+
+    return proposicoes;
+  } catch {
+    return [];
+  }
+}
+
+/* RANKING */
+async function gerarRankingPresenca() {
+  rankingMaior.innerHTML = "";
+  rankingMenor.innerHTML = "";
+  const status = document.getElementById('statusRanking');
+  status.innerText = Calculando presença de ${deputadosFiltrados.length} deputados...;
+
+  const resultados = [];
+  let count = 1;
+
+  for (const dep of deputadosFiltrados) {
+    status.innerText = Calculando ${count}/${deputadosFiltrados.length}...;
+    count++;
+    const r = await calcularPresenca(dep);
+    resultados.push({ nome: dep.nome, partido: dep.siglaPartido, uf: dep.siglaUf, presenca: r.presenca });
+  }
+
+  const maior = [...resultados].sort((a,b) => b.presenca - a.presenca).slice(0,20);
+  const menor = [...resultados].sort((a,b) => a.presenca - b.presenca).slice(0,20);
+
+  maior.forEach((d,i) => {
+    rankingMaior.innerHTML += <tr><td>${i+1}</td><td>${d.nome}</td><td>${d.partido}</td><td>${d.uf}</td><td>${d.presenca}%</td></tr>;
+  });
+
+  menor.forEach((d,i) => {
+    rankingMenor.innerHTML += <tr><td>${i+1}</td><td>${d.nome}</td><td>${d.partido}</td><td>${d.uf}</td><td>${d.presenca}%</td></tr>;
+  });
+
+  status.innerText = "Ranking concluído";
+}
+
+/* GRÁFICO */
+function desenharGrafico(eventos, plenarios) {
+  if (chart) chart.destroy();
+
+  chart = new Chart(document.getElementById('grafico'), {
+    type: 'bar',
+    data: {
+      labels: ['Eventos', 'Plenário'],
+      datasets: [{
+        data: [eventos, plenarios],
+        backgroundColor: ['#4CAF50', '#2196F3'],
+        minBarLength: 6
+      }]
+    },
+    options: {
+      responsive: false,
+      scales: {
+        y: { beginAtZero: true, ticks: { precision: 0 } }
+      }
+    }
+  });
+}
 </script>
 
 </body>
