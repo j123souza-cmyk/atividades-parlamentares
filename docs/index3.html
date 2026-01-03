@@ -8,9 +8,7 @@
 body {
     font-family: Arial, sans-serif;
     background: #f4f6f8;
-    margin: 0;
     padding: 20px;
-    color: #333;
 }
 .container {
     max-width: 1100px;
@@ -18,7 +16,6 @@ body {
 }
 h1 {
     text-align: center;
-    margin-bottom: 20px;
 }
 .accordion {
     background: #fff;
@@ -27,12 +24,11 @@ h1 {
     box-shadow: 0 2px 6px rgba(0,0,0,.1);
 }
 .accordion-header {
-    padding: 15px 20px;
+    padding: 15px;
     background: #1f5aa6;
     color: #fff;
-    font-size: 18px;
-    font-weight: bold;
     cursor: pointer;
+    font-weight: bold;
     display: flex;
     justify-content: space-between;
 }
@@ -54,8 +50,8 @@ h1 {
 }
 .stats {
     background: #eef3fb;
-    border-radius: 6px;
     padding: 12px;
+    border-radius: 6px;
     margin-bottom: 15px;
 }
 .small {
@@ -65,9 +61,6 @@ h1 {
 a {
     color: #1f5aa6;
     text-decoration: none;
-}
-a:hover {
-    text-decoration: underline;
 }
 </style>
 </head>
@@ -90,42 +83,61 @@ a:hover {
 <script>
 const DEPUTADO_ID = 152605;
 const ANO_INICIAL = 2023;
-const CACHE_TTL = 86400000; // 24h
+const CACHE_TTL = 86400000;
 const CORS_PROXY = "https://api.allorigins.win/raw?url=";
 
-// ---------------- UI ----------------
-function toggle(header) {
-    const content = header.nextElementSibling;
-    const arrow = header.querySelector("span");
-    content.style.display = content.style.display === "block" ? "none" : "block";
-    arrow.textContent = content.style.display === "block" ? "▲" : "▼";
+// ---------- UI ----------
+function toggle(h) {
+    const c = h.nextElementSibling;
+    const a = h.querySelector("span");
+    c.style.display = c.style.display === "block" ? "none" : "block";
+    a.textContent = c.style.display === "block" ? "▲" : "▼";
 }
 
-// ---------------- CACHE ----------------
-function cacheGet(key) {
-    const raw = localStorage.getItem(key);
+// ---------- CACHE ----------
+function cacheGet(k) {
+    const raw = localStorage.getItem(k);
     if (!raw) return null;
     const obj = JSON.parse(raw);
-    if (Date.now() - obj.time > CACHE_TTL) return null;
-    return obj.data;
+    if (Date.now() - obj.t > CACHE_TTL) return null;
+    return obj.d;
 }
-function cacheSet(key, data) {
-    localStorage.setItem(key, JSON.stringify({ time: Date.now(), data }));
+function cacheSet(k, d) {
+    localStorage.setItem(k, JSON.stringify({ t: Date.now(), d }));
 }
 
-// ---------------- API (COM PROXY) ----------------
+// ---------- API ----------
 async function api(url) {
     const proxyUrl = CORS_PROXY + encodeURIComponent(url);
-    const response = await fetch(proxyUrl);
-    if (!response.ok) throw new Error("Falha ao acessar API");
-    const json = await response.json();
-    return json.dados || [];
+    const r = await fetch(proxyUrl);
+    if (!r.ok) throw new Error("Erro API");
+    const j = await r.json();
+    return j.dados || [];
 }
 
-// ---------------- PROPOSIÇÕES ----------------
+// ---------- PAGINAÇÃO ----------
+async function buscarTodasProposicoes() {
+    let pagina = 1;
+    let todas = [];
+
+    while (true) {
+        const dados = await api(
+            `https://dadosabertos.camara.leg.br/api/v2/deputados/${DEPUTADO_ID}/proposicoes` +
+            `?itens=50&pagina=${pagina}&ordem=DESC&ordenarPor=ano`
+        );
+
+        if (!dados.length) break;
+        todas = todas.concat(dados);
+        pagina++;
+    }
+
+    return todas;
+}
+
+// ---------- PROPOSIÇÕES ----------
 async function carregarProposicoes() {
     const el = document.getElementById("proposicoes");
-    const cache = cacheGet("glauber_proposicoes_atual");
+    const cache = cacheGet("glauber_prop_paginado");
 
     if (cache) {
         renderProposicoes(cache);
@@ -133,14 +145,10 @@ async function carregarProposicoes() {
     }
 
     try {
-        const dados = await api(
-            `https://dadosabertos.camara.leg.br/api/v2/deputados/${DEPUTADO_ID}/proposicoes?itens=100&ordem=DESC&ordenarPor=ano`
-        );
-
-        const filtrados = dados.filter(p => p.ano >= ANO_INICIAL);
-        cacheSet("glauber_proposicoes_atual", filtrados);
-        renderProposicoes(filtrados);
-
+        const todas = await buscarTodasProposicoes();
+        const filtradas = todas.filter(p => p.ano >= ANO_INICIAL);
+        cacheSet("glauber_prop_paginado", filtradas);
+        renderProposicoes(filtradas);
     } catch (e) {
         el.innerHTML = "<p>Erro ao carregar proposições.</p>";
     }
@@ -154,15 +162,14 @@ function renderProposicoes(lista) {
         return;
     }
 
-    // -------- ESTATÍSTICAS --------
     const stats = {};
     lista.forEach(p => {
         stats[p.siglaTipo] = (stats[p.siglaTipo] || 0) + 1;
     });
 
-    let statsHtml = "<div class='stats'><strong>📊 Estatísticas (mandato atual)</strong><ul>";
-    for (const tipo in stats) {
-        statsHtml += `<li>${tipo}: ${stats[tipo]}</li>`;
+    let statsHtml = "<div class='stats'><strong>📊 Estatísticas</strong><ul>";
+    for (const t in stats) {
+        statsHtml += `<li>${t}: ${stats[t]}</li>`;
     }
     statsHtml += "</ul></div>";
 
@@ -172,7 +179,7 @@ function renderProposicoes(lista) {
     `;
 
     lista.forEach(p => {
-        const relevante = ["PL", "PEC", "PDL"].includes(p.siglaTipo);
+        const relevante = ["PL","PEC","PDL"].includes(p.siglaTipo);
         el.innerHTML += `
         <div class="item ${relevante ? "relevante" : ""}">
             <p>
@@ -180,21 +187,13 @@ function renderProposicoes(lista) {
                 ${relevante ? " ⭐ <strong>Relevante</strong>" : ""}
             </p>
             <p><span class="label">Ementa:</span> ${p.ementa || "—"}</p>
-            <p>
-                🔗 <a href="${p.uri}" target="_blank">
-                    Ver proposição no site da Câmara
-                </a>
-            </p>
-        </div>
-        `;
+            <p>🔗 <a href="${p.uri}" target="_blank">Ver na Câmara</a></p>
+        </div>`;
     });
 }
 
-// ---------------- INIT ----------------
-document.addEventListener("DOMContentLoaded", () => {
-    carregarProposicoes();
-});
+// ---------- INIT ----------
+document.addEventListener("DOMContentLoaded", carregarProposicoes);
 </script>
-
 </body>
 </html>
