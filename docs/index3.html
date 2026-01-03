@@ -2,151 +2,192 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Sessões do Plenário</title>
+<title>Atuação Parlamentar</title>
 
 <style>
-body { font-family: Arial, sans-serif; margin: 20px; }
-.evento { padding:10px; border-bottom:1px solid #ccc; cursor:pointer }
-.evento:hover { background:#f2f2f2 }
-.detalhe { margin-top:10px; padding:10px; background:#fafafa; border-left:4px solid #005ea8 }
-.oculto { display:none }
-.proposicao { margin-bottom:16px }
-.proposicao strong { display:block }
-.relator { color:#005ea8; font-weight:bold }
-.carregando { font-style:italic; color:#777 }
+    body {
+        font-family: Arial, Helvetica, sans-serif;
+        background: #f4f6f8;
+        margin: 0;
+        padding: 20px;
+        color: #333;
+    }
+
+    .container {
+        max-width: 900px;
+        margin: auto;
+    }
+
+    h1 {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+
+    .accordion {
+        background-color: #ffffff;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+
+    .accordion-header {
+        padding: 15px 20px;
+        cursor: pointer;
+        font-size: 18px;
+        font-weight: bold;
+        background-color: #1f5aa6;
+        color: #fff;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .accordion-header:hover {
+        background-color: #174884;
+    }
+
+    .accordion-content {
+        display: none;
+        padding: 20px;
+        background-color: #fff;
+    }
+
+    .accordion-content p {
+        margin: 8px 0;
+    }
+
+    .section-title {
+        font-weight: bold;
+        margin-top: 15px;
+    }
+
+    .proposition,
+    .voting {
+        border-left: 4px solid #1f5aa6;
+        padding-left: 12px;
+        margin: 15px 0;
+    }
+
+    .label {
+        font-weight: bold;
+    }
+
+    .icon {
+        font-size: 20px;
+    }
 </style>
 </head>
 
 <body>
 
-<h2>Sessões do Plenário</h2>
-<div id="lista"></div>
+<div class="container">
+    <h1>Atuação Parlamentar</h1>
+
+    <!-- 1️⃣ Proposições -->
+    <div class="accordion">
+        <div class="accordion-header" onclick="toggleAccordion(this)">
+            1️⃣ Proposições apresentadas (clique para abrir)
+            <span class="icon">▼</span>
+        </div>
+        <div class="accordion-content">
+
+            <p><span class="label">📌 Quantidade de proposições apresentadas</span></p>
+            <p>📊 Ordem de grandeza: dezenas de proposições por ano</p>
+            <p>Atuação constante como autor e coautor</p>
+
+            <p class="section-title">📌 Tipos mais frequentes</p>
+            <ul>
+                <li>Projetos de Lei (PL)</li>
+                <li>Projetos de Decreto Legislativo (PDL)</li>
+                <li>Requerimentos de Informação (RIC)</li>
+                <li>Requerimentos de Audiência Pública e Fiscalização</li>
+            </ul>
+
+            <p class="section-title">📑 Exemplos de proposições (formato ilustrativo)</p>
+
+            <div class="proposition">
+                <p><span class="label">PL 412/2024</span></p>
+                <p><span class="label">Tema:</span> Serviços públicos</p>
+                <p><span class="label">Ementa:</span> Dispõe sobre critérios de reajuste de tarifas em concessões federais</p>
+            </div>
+
+            <div class="proposition">
+                <p><span class="label">PDL 98/2024</span></p>
+                <p><span class="label">Tema:</span> Privatizações</p>
+                <p><span class="label">Ementa:</span> Sustação de decreto que autoriza alienação de ativos estatais</p>
+            </div>
+
+            <div class="proposition">
+                <p><span class="label">RIC 155/2024</span></p>
+                <p><span class="label">Tema:</span> Transparência administrativa</p>
+                <p><span class="label">Ementa:</span> Solicita informações sobre contratos emergenciais firmados pelo Executivo</p>
+            </div>
+
+            <div class="proposition">
+                <p><span class="label">REQ 233/2024</span></p>
+                <p><span class="label">Tema:</span> Fiscalização</p>
+                <p><span class="label">Ementa:</span> Requer realização de audiência pública para apuração de irregularidades</p>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- 2️⃣ Votações -->
+    <div class="accordion">
+        <div class="accordion-header" onclick="toggleAccordion(this)">
+            🔗 2️⃣ Relação de votações (clique para abrir)
+            <span class="icon">▼</span>
+        </div>
+        <div class="accordion-content">
+
+            <p class="section-title">📑 Relação de votações (modelo demonstrativo)</p>
+
+            <div class="voting">
+                <p><span class="label">PL 412/2024</span></p>
+                <p><span class="label">Tema:</span> Serviços públicos</p>
+                <p><span class="label">Ementa:</span> Dispõe sobre critérios de reajuste de tarifas em concessões de serviços públicos federais</p>
+                <p><span class="label">Posicionamento:</span> Voto SIM</p>
+            </div>
+
+            <div class="voting">
+                <p><span class="label">PDL 98/2024</span></p>
+                <p><span class="label">Tema:</span> Privatizações</p>
+                <p><span class="label">Ementa:</span> Sustação de decreto que autoriza a alienação de ativos de empresas estatais</p>
+                <p><span class="label">Posicionamento:</span> Voto NÃO</p>
+            </div>
+
+            <div class="voting">
+                <p><span class="label">PEC 45/2023</span></p>
+                <p><span class="label">Tema:</span> Sistema tributário</p>
+                <p><span class="label">Ementa:</span> Altera o sistema de tributação sobre consumo, criando o IVA nacional</p>
+                <p><span class="label">Posicionamento:</span> Abstenção</p>
+            </div>
+
+            <div class="voting">
+                <p><span class="label">PL 233/2022</span></p>
+                <p><span class="label">Tema:</span> Direitos trabalhistas</p>
+                <p><span class="label">Ementa:</span> Dispõe sobre garantias adicionais para trabalhadores em contratos intermitentes</p>
+                <p><span class="label">Posicionamento:</span> Ausente</p>
+            </div>
+
+        </div>
+    </div>
+
+</div>
 
 <script>
-const BASE = "https://dadosabertos.camara.leg.br/api/v2";
-const lista = document.getElementById("lista");
+function toggleAccordion(header) {
+    const content = header.nextElementSibling;
+    const icon = header.querySelector(".icon");
 
-/* ======================
-   CACHES GLOBAIS
-====================== */
-const cacheProps = {};      // proposições (autoria + situação)
-const cacheSessao = {};     // sessões já carregadas
-
-/* ======================
-   CARREGAR SESSÕES
-====================== */
-(async function carregarSessoes() {
-  const hoje = new Date();
-  const inicio = new Date();
-  inicio.setMonth(hoje.getMonth() - 3);
-
-  const resp = await fetch(
-    `${BASE}/eventos?dataInicio=${inicio.toISOString().slice(0,10)}&dataFim=${hoje.toISOString().slice(0,10)}&itens=50&ordenarPor=dataHoraInicio&ordem=DESC`
-  );
-  const dados = (await resp.json()).dados || [];
-
-  dados.filter(e => e.titulo?.toLowerCase().includes("sessão"))
-    .forEach(criarSessao);
-})();
-
-/* ======================
-   CRIAR BLOCO DA SESSÃO
-====================== */
-function criarSessao(ev) {
-  const div = document.createElement("div");
-  div.className = "evento";
-  div.innerHTML = `
-    <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong><br>
-    Sessão do Plenário
-    <div id="det-${ev.id}" class="detalhe oculto">
-      <div class="lista-props carregando">Clique para carregar proposições…</div>
-    </div>
-  `;
-  div.onclick = () => abrirSessao(ev);
-  lista.appendChild(div);
-}
-
-/* ======================
-   ABRIR SESSÃO
-====================== */
-async function abrirSessao(ev) {
-  const box = document.getElementById(`det-${ev.id}`);
-  box.classList.toggle("oculto");
-
-  if (cacheSessao[ev.id] || box.classList.contains("oculto")) return;
-
-  const container = box.querySelector(".lista-props");
-  container.innerHTML = "Carregando proposições…";
-
-  const votResp = await fetch(`${BASE}/eventos/${ev.id}/votacoes`);
-  const votacoes = (await votResp.json()).dados || [];
-
-  container.innerHTML = "";
-
-  for (const v of votacoes) {
-    let voto;
-    try {
-      voto = (await (await fetch(`${BASE}/votacoes/${v.id}`)).json()).dados;
-    } catch { continue; }
-
-    const relator = voto.relatores?.map(r =>
-      r.nome + (r.siglaPartido ? ` (${r.siglaPartido}${r.siglaUf ? "-" + r.siglaUf : ""})` : "")
-    ).join(", ");
-
-    if (!voto?.proposicoesAfetadas?.length) {
-      container.innerHTML += `<div class="proposicao"><em>Votação sem proposição vinculada</em></div>`;
-      continue;
+    if (content.style.display === "block") {
+        content.style.display = "none";
+        icon.textContent = "▼";
+    } else {
+        content.style.display = "block";
+        icon.textContent = "▲";
     }
-
-    for (const p of voto.proposicoesAfetadas) {
-      const prop = await obterProposicao(p);
-
-      container.innerHTML += `
-        <div class="proposicao">
-          <strong>${prop.siglaTipo} ${prop.numero}/${prop.ano}</strong>
-          ${prop.ementa || ""}
-          <div><strong>Autoria:</strong> ${prop.autoria}</div>
-          <div><strong>Situação:</strong> ${prop.situacao}</div>
-          ${relator ? `<div class="relator">Relator: ${relator}</div>` : ""}
-          <div><strong>Resultado:</strong> ${voto.resultado || voto.descricao || ""}</div>
-        </div>
-      `;
-    }
-  }
-
-  cacheSessao[ev.id] = true;
-}
-
-/* ======================
-   PROPOSIÇÃO (CACHE + FALLBACK)
-====================== */
-async function obterProposicao(p) {
-  if (cacheProps[p.id]) return cacheProps[p.id];
-
-  let autoria = "Não informada";
-  let situacao = "Não informada";
-
-  try {
-    const r = await fetch(`${BASE}/proposicoes/${p.id}`);
-    if (r.ok) {
-      const d = (await r.json()).dados;
-      situacao = d?.statusProposicao?.descricaoSituacao || situacao;
-    }
-
-    const ra = await fetch(`${BASE}/proposicoes/${p.id}/autores`);
-    if (ra.ok) {
-      const a = (await ra.json()).dados || [];
-      autoria = a.map(x =>
-        x.nome + (x.siglaPartido ? ` (${x.siglaPartido}${x.siglaUf ? "-" + x.siglaUf : ""})` : "")
-      ).join(", ") || autoria;
-    }
-  } catch {}
-
-  return cacheProps[p.id] = {
-    ...p,
-    autoria,
-    situacao
-  };
 }
 </script>
 
