@@ -8,7 +8,9 @@
 body {
     font-family: Arial, sans-serif;
     background: #f4f6f8;
+    margin: 0;
     padding: 20px;
+    color: #333;
 }
 .container {
     max-width: 1100px;
@@ -16,6 +18,7 @@ body {
 }
 h1 {
     text-align: center;
+    margin-bottom: 20px;
 }
 .accordion {
     background: #fff;
@@ -24,11 +27,12 @@ h1 {
     box-shadow: 0 2px 6px rgba(0,0,0,.1);
 }
 .accordion-header {
-    padding: 15px;
+    padding: 15px 20px;
     background: #1f5aa6;
     color: #fff;
-    cursor: pointer;
+    font-size: 18px;
     font-weight: bold;
+    cursor: pointer;
     display: flex;
     justify-content: space-between;
 }
@@ -54,16 +58,16 @@ h1 {
     padding: 12px;
     margin-bottom: 15px;
 }
+.small {
+    font-size: 14px;
+    color: #555;
+}
 a {
     color: #1f5aa6;
     text-decoration: none;
 }
 a:hover {
     text-decoration: underline;
-}
-.small {
-    font-size: 14px;
-    color: #555;
 }
 </style>
 </head>
@@ -72,7 +76,6 @@ a:hover {
 <div class="container">
     <h1>Atuação Parlamentar – Glauber Braga (PSOL-RJ)</h1>
 
-    <!-- PROPOSIÇÕES -->
     <div class="accordion">
         <div class="accordion-header" onclick="toggle(this)">
             1️⃣ Proposições apresentadas – Mandato atual
@@ -87,69 +90,79 @@ a:hover {
 <script>
 const DEPUTADO_ID = 152605;
 const ANO_INICIAL = 2023;
-const CACHE_TTL = 86400000;
+const CACHE_TTL = 86400000; // 24h
+const CORS_PROXY = "https://api.allorigins.win/raw?url=";
 
-// -------- UI --------
-function toggle(h) {
-    const c = h.nextElementSibling;
-    const a = h.querySelector("span");
-    c.style.display = c.style.display === "block" ? "none" : "block";
-    a.textContent = c.style.display === "block" ? "▲" : "▼";
+// ---------------- UI ----------------
+function toggle(header) {
+    const content = header.nextElementSibling;
+    const arrow = header.querySelector("span");
+    content.style.display = content.style.display === "block" ? "none" : "block";
+    arrow.textContent = content.style.display === "block" ? "▲" : "▼";
 }
 
-// -------- CACHE --------
-function cacheGet(k) {
-    const v = localStorage.getItem(k);
-    if (!v) return null;
-    const o = JSON.parse(v);
-    if (Date.now() - o.t > CACHE_TTL) return null;
-    return o.d;
+// ---------------- CACHE ----------------
+function cacheGet(key) {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (Date.now() - obj.time > CACHE_TTL) return null;
+    return obj.data;
 }
-function cacheSet(k, d) {
-    localStorage.setItem(k, JSON.stringify({ t: Date.now(), d }));
+function cacheSet(key, data) {
+    localStorage.setItem(key, JSON.stringify({ time: Date.now(), data }));
 }
 
-// -------- API --------
+// ---------------- API (COM PROXY) ----------------
 async function api(url) {
-    const r = await fetch(url, { headers: { Accept: "application/json" } });
-    const j = await r.json();
-    return j.dados || [];
+    const proxyUrl = CORS_PROXY + encodeURIComponent(url);
+    const response = await fetch(proxyUrl);
+    if (!response.ok) throw new Error("Falha ao acessar API");
+    const json = await response.json();
+    return json.dados || [];
 }
 
-// -------- PROPOSIÇÕES --------
+// ---------------- PROPOSIÇÕES ----------------
 async function carregarProposicoes() {
     const el = document.getElementById("proposicoes");
-    const cache = cacheGet("prop_glauber_atual");
-    if (cache) return renderProposicoes(cache);
+    const cache = cacheGet("glauber_proposicoes_atual");
+
+    if (cache) {
+        renderProposicoes(cache);
+        return;
+    }
 
     try {
         const dados = await api(
             `https://dadosabertos.camara.leg.br/api/v2/deputados/${DEPUTADO_ID}/proposicoes?itens=100&ordem=DESC&ordenarPor=ano`
         );
+
         const filtrados = dados.filter(p => p.ano >= ANO_INICIAL);
-        cacheSet("prop_glauber_atual", filtrados);
+        cacheSet("glauber_proposicoes_atual", filtrados);
         renderProposicoes(filtrados);
-    } catch {
+
+    } catch (e) {
         el.innerHTML = "<p>Erro ao carregar proposições.</p>";
     }
 }
 
 function renderProposicoes(lista) {
     const el = document.getElementById("proposicoes");
+
     if (!lista.length) {
         el.innerHTML = "<p>Nenhuma proposição encontrada.</p>";
         return;
     }
 
-    // ---------- ESTATÍSTICAS ----------
+    // -------- ESTATÍSTICAS --------
     const stats = {};
     lista.forEach(p => {
         stats[p.siglaTipo] = (stats[p.siglaTipo] || 0) + 1;
     });
 
     let statsHtml = "<div class='stats'><strong>📊 Estatísticas (mandato atual)</strong><ul>";
-    for (const t in stats) {
-        statsHtml += `<li>${t}: ${stats[t]}</li>`;
+    for (const tipo in stats) {
+        statsHtml += `<li>${tipo}: ${stats[tipo]}</li>`;
     }
     statsHtml += "</ul></div>";
 
@@ -172,11 +185,16 @@ function renderProposicoes(lista) {
                     Ver proposição no site da Câmara
                 </a>
             </p>
-        </div>`;
+        </div>
+        `;
     });
 }
 
-document.addEventListener("DOMContentLoaded", carregarProposicoes);
+// ---------------- INIT ----------------
+document.addEventListener("DOMContentLoaded", () => {
+    carregarProposicoes();
+});
 </script>
+
 </body>
 </html>
