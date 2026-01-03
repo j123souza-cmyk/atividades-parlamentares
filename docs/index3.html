@@ -2,72 +2,28 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Atuação Parlamentar – Glauber Braga</title>
+<title>Atuação Parlamentar – Aécio Neves</title>
 
 <style>
-body {
-    font-family: Arial, sans-serif;
-    background: #f4f6f8;
-    padding: 20px;
-}
-.container {
-    max-width: 1100px;
-    margin: auto;
-}
-h1 {
-    text-align: center;
-}
-.accordion {
-    background: #fff;
-    border-radius: 8px;
-    margin-bottom: 16px;
-    box-shadow: 0 2px 6px rgba(0,0,0,.1);
-}
-.accordion-header {
-    padding: 15px;
-    background: #1f5aa6;
-    color: #fff;
-    cursor: pointer;
-    font-weight: bold;
-    display: flex;
-    justify-content: space-between;
-}
-.accordion-content {
-    display: none;
-    padding: 20px;
-}
-.item {
-    border-left: 5px solid #1f5aa6;
-    padding-left: 12px;
-    margin-bottom: 14px;
-}
-.relevante {
-    border-color: #d62828;
-    background: #fff4f4;
-}
-.label {
-    font-weight: bold;
-}
-.stats {
-    background: #eef3fb;
-    padding: 12px;
-    border-radius: 6px;
-    margin-bottom: 15px;
-}
-.small {
-    font-size: 14px;
-    color: #555;
-}
-a {
-    color: #1f5aa6;
-    text-decoration: none;
-}
+body { font-family: Arial, sans-serif; background: #f4f6f8; padding: 20px; }
+.container { max-width: 1100px; margin: auto; }
+h1 { text-align: center; }
+.accordion { background: #fff; border-radius: 8px; margin-bottom: 16px; box-shadow: 0 2px 6px rgba(0,0,0,.1); }
+.accordion-header { padding: 15px; background: #1f5aa6; color: #fff; font-weight: bold; display: flex; justify-content: space-between; cursor: pointer; }
+.accordion-content { display: none; padding: 20px; }
+.item { border-left: 5px solid #1f5aa6; padding-left: 12px; margin-bottom: 14px; }
+.relevante { border-color: #d62828; background: #fff4f4; }
+.label { font-weight: bold; }
+.stats { background: #eef3fb; padding: 12px; border-radius: 6px; margin-bottom: 15px; }
+.small { font-size: 14px; color: #555; }
+a { color: #1f5aa6; text-decoration: none; }
+a:hover { text-decoration: underline; }
 </style>
 </head>
 
 <body>
 <div class="container">
-    <h1>Atuação Parlamentar – Glauber Braga (PSOL-RJ)</h1>
+    <h1>Atuação Parlamentar – Aécio Neves (PSDB-MG)</h1>
 
     <div class="accordion">
         <div class="accordion-header" onclick="toggle(this)">
@@ -81,63 +37,60 @@ a {
 </div>
 
 <script>
-const DEPUTADO_ID = 152605;
+const DEPUTADO_ID = 74646; // Aécio Neves — ID oficial da Câmara
 const ANO_INICIAL = 2023;
-const CACHE_TTL = 86400000;
+const CACHE_TTL = 86400000; // 24h
 const CORS_PROXY = "https://api.allorigins.win/raw?url=";
 
-// ---------- UI ----------
-function toggle(h) {
-    const c = h.nextElementSibling;
-    const a = h.querySelector("span");
-    c.style.display = c.style.display === "block" ? "none" : "block";
-    a.textContent = c.style.display === "block" ? "▲" : "▼";
+// Toggle accordion
+function toggle(header) {
+    const content = header.nextElementSibling;
+    const arrow = header.querySelector("span");
+    content.style.display = content.style.display === "block" ? "none" : "block";
+    arrow.textContent = content.style.display === "block" ? "▲" : "▼";
 }
 
-// ---------- CACHE ----------
-function cacheGet(k) {
-    const raw = localStorage.getItem(k);
+// Cache functions
+function cacheGet(key) {
+    const raw = localStorage.getItem(key);
     if (!raw) return null;
     const obj = JSON.parse(raw);
-    if (Date.now() - obj.t > CACHE_TTL) return null;
-    return obj.d;
+    if (Date.now() - obj.time > CACHE_TTL) return null;
+    return obj.data;
 }
-function cacheSet(k, d) {
-    localStorage.setItem(k, JSON.stringify({ t: Date.now(), d }));
+function cacheSet(key, data) {
+    localStorage.setItem(key, JSON.stringify({ time: Date.now(), data }));
 }
 
-// ---------- API ----------
+// Fetch API with proxy
 async function api(url) {
     const proxyUrl = CORS_PROXY + encodeURIComponent(url);
-    const r = await fetch(proxyUrl);
-    if (!r.ok) throw new Error("Erro API");
-    const j = await r.json();
-    return j.dados || [];
+    const response = await fetch(proxyUrl);
+    if (!response.ok) throw new Error("Erro ao acessar API");
+    const json = await response.json();
+    return json.dados || [];
 }
 
-// ---------- PAGINAÇÃO ----------
-async function buscarTodasProposicoes() {
-    let pagina = 1;
-    let todas = [];
-
+// Pagination to collect all propositions
+async function fetchAllProposicoes() {
+    let page = 1;
+    let all = [];
     while (true) {
         const dados = await api(
             `https://dadosabertos.camara.leg.br/api/v2/deputados/${DEPUTADO_ID}/proposicoes` +
-            `?itens=50&pagina=${pagina}&ordem=DESC&ordenarPor=ano`
+            `?itens=50&pagina=${page}&ordem=DESC&ordenarPor=ano`
         );
-
         if (!dados.length) break;
-        todas = todas.concat(dados);
-        pagina++;
+        all = all.concat(dados);
+        page++;
     }
-
-    return todas;
+    return all;
 }
 
-// ---------- PROPOSIÇÕES ----------
+// Load propositions
 async function carregarProposicoes() {
     const el = document.getElementById("proposicoes");
-    const cache = cacheGet("glauber_prop_paginado");
+    const cache = cacheGet("aecio_prop_paginado");
 
     if (cache) {
         renderProposicoes(cache);
@@ -145,55 +98,54 @@ async function carregarProposicoes() {
     }
 
     try {
-        const todas = await buscarTodasProposicoes();
+        const todas = await fetchAllProposicoes();
         const filtradas = todas.filter(p => p.ano >= ANO_INICIAL);
-        cacheSet("glauber_prop_paginado", filtradas);
+        cacheSet("aecio_prop_paginado", filtradas);
         renderProposicoes(filtradas);
     } catch (e) {
         el.innerHTML = "<p>Erro ao carregar proposições.</p>";
     }
 }
 
+// Render propositions
 function renderProposicoes(lista) {
     const el = document.getElementById("proposicoes");
-
     if (!lista.length) {
-        el.innerHTML = "<p>Nenhuma proposição encontrada.</p>";
+        el.innerHTML = "<p>Nenhuma proposição encontrada para o mandato atual.</p>";
         return;
     }
 
+    // Statistics by type
     const stats = {};
     lista.forEach(p => {
         stats[p.siglaTipo] = (stats[p.siglaTipo] || 0) + 1;
     });
 
-    let statsHtml = "<div class='stats'><strong>📊 Estatísticas</strong><ul>";
-    for (const t in stats) {
-        statsHtml += `<li>${t}: ${stats[t]}</li>`;
+    let statsHtml = "<div class='stats'><strong>📊 Estatísticas (mandato atual)</strong><ul>";
+    for (const tipo in stats) {
+        statsHtml += `<li>${tipo}: ${stats[tipo]}</li>`;
     }
     statsHtml += "</ul></div>";
 
     el.innerHTML = `
         ${statsHtml}
-        <p class="small">📌 Total: ${lista.length} proposições desde 2023</p>
+        <p class="small">📌 Total: ${lista.length} proposições desde ${ANO_INICIAL}</p>
     `;
 
     lista.forEach(p => {
         const relevante = ["PL","PEC","PDL"].includes(p.siglaTipo);
         el.innerHTML += `
         <div class="item ${relevante ? "relevante" : ""}">
-            <p>
-                <span class="label">${p.siglaTipo} ${p.numero}/${p.ano}</span>
-                ${relevante ? " ⭐ <strong>Relevante</strong>" : ""}
-            </p>
+            <p><span class="label">${p.siglaTipo} ${p.numero}/${p.ano}</span>
+            ${relevante ? " ⭐ <strong>Relevante</strong>" : ""}</p>
             <p><span class="label">Ementa:</span> ${p.ementa || "—"}</p>
-            <p>🔗 <a href="${p.uri}" target="_blank">Ver na Câmara</a></p>
+            <p>🔗 <a href="${p.uri}" target="_blank">Ver proposição no site da Câmara</a></p>
         </div>`;
     });
 }
 
-// ---------- INIT ----------
 document.addEventListener("DOMContentLoaded", carregarProposicoes);
 </script>
+
 </body>
 </html>
