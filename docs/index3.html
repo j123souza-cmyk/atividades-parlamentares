@@ -2,190 +2,98 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Atuação Parlamentar – Jandira Feghali</title>
-
+<title>Atuação Parlamentar — Jandira Feghali</title>
 <style>
-body {
-    font-family: Arial, sans-serif;
-    background: #f4f6f8;
-    padding: 20px;
-}
-.container {
-    max-width: 1100px;
-    margin: auto;
-}
-h1 {
-    text-align: center;
-}
-.accordion {
-    background: #fff;
-    border-radius: 8px;
-    margin-bottom: 16px;
-    box-shadow: 0 2px 6px rgba(0,0,0,.1);
-}
-.accordion-header {
-    padding: 15px;
-    background: #8e0038;
-    color: #fff;
-    cursor: pointer;
-    font-weight: bold;
-    display: flex;
-    justify-content: space-between;
-}
-.accordion-content {
-    display: none;
-    padding: 20px;
-}
-.item {
-    border-left: 5px solid #8e0038;
-    padding-left: 12px;
-    margin-bottom: 14px;
-}
-.relevante {
-    border-color: #d62828;
-    background: #fff4f4;
-}
-.label {
-    font-weight: bold;
-}
-.stats {
-    background: #fdecef;
-    padding: 12px;
-    border-radius: 6px;
-    margin-bottom: 15px;
-}
-.small {
-    font-size: 14px;
-    color: #555;
-}
-a {
-    color: #8e0038;
-    text-decoration: none;
-}
+body { font-family: Arial, sans-serif; background: #f4f6f8; padding: 20px; }
+.container { max-width: 1100px; margin: auto; }
+h1 { text-align: center; margin-bottom: 20px; }
+.accordion { background: #fff; border-radius: 8px; margin-bottom: 16px; box-shadow: 0 2px 6px rgba(0,0,0,.1); }
+.accordion-header { padding: 15px; background: #8e0038; color: #fff; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; }
+.accordion-content { display: none; padding: 20px; }
+.item { border-left: 5px solid #8e0038; padding-left: 12px; margin-bottom: 14px; }
+.relevante { border-color: #d62828; background: #fff4f4; }
+.label { font-weight: bold; }
+.stats { background: #fdecef; padding: 12px; border-radius: 6px; margin-bottom: 15px; }
+.small { font-size: 14px; color: #555; }
+a { color: #8e0038; text-decoration: none; }
 </style>
 </head>
 
 <body>
 <div class="container">
-    <h1>Atuação Parlamentar – Jandira Feghali (PCdoB-RJ)</h1>
+  <h1>Atuação Parlamentar — Jandira Feghali (PCdoB-RJ)</h1>
 
-    <div class="accordion">
-        <div class="accordion-header" onclick="toggle(this)">
-            1️⃣ Proposições apresentadas – Mandato atual
-            <span>▼</span>
-        </div>
-        <div class="accordion-content" id="proposicoes">
-            <p>Carregando proposições…</p>
-        </div>
+  <div class="accordion">
+    <div class="accordion-header" onclick="toggle(this)">
+      1️⃣ Proposições apresentadas (por ano)
+      <span>▼</span>
     </div>
+    <div class="accordion-content" id="proposicoes">
+      <p>Carregando proposições… pode demorar um pouco...</p>
+    </div>
+  </div>
 </div>
 
 <script>
-const DEPUTADO_ID = 73464; // Jandira Feghali
-const ANO_INICIAL = 2023;
-const CACHE_TTL = 86400000;
+const ANOS = [2023, 2024, 2025];
+const NOME_DEPUTADA = "Jandira Feghali";
 const CORS_PROXY = "https://api.allorigins.win/raw?url=";
 
-// Accordion
 function toggle(h) {
-    const c = h.nextElementSibling;
-    const a = h.querySelector("span");
-    c.style.display = c.style.display === "block" ? "none" : "block";
-    a.textContent = c.style.display === "block" ? "▲" : "▼";
+  const c = h.nextElementSibling;
+  const a = h.querySelector("span");
+  c.style.display = c.style.display === "block" ? "none" : "block";
+  a.textContent = c.style.display === "block" ? "▲" : "▼";
 }
 
-// Cache
-function cacheGet(k) {
-    const raw = localStorage.getItem(k);
-    if (!raw) return null;
-    const o = JSON.parse(raw);
-    if (Date.now() - o.t > CACHE_TTL) return null;
-    return o.d;
-}
-function cacheSet(k, d) {
-    localStorage.setItem(k, JSON.stringify({ t: Date.now(), d }));
+async function fetchJson(url) {
+  const res = await fetch(CORS_PROXY + encodeURIComponent(url));
+  return await res.json();
 }
 
-// API
-async function api(url) {
-    const r = await fetch(CORS_PROXY + encodeURIComponent(url));
-    const j = await r.json();
-    return j.dados || [];
-}
-
-// Pagination
-async function buscarTodasProposicoes() {
-    let pagina = 1;
-    let todas = [];
-
-    while (true) {
-        const dados = await api(
-            `https://dadosabertos.camara.leg.br/api/v2/deputados/${DEPUTADO_ID}/proposicoes` +
-            `?itens=50&pagina=${pagina}&ordem=DESC&ordenarPor=ano`
-        );
-
-        if (!dados.length) break;
-        todas = todas.concat(dados);
-        pagina++;
-    }
-    return todas;
-}
-
-// Load
 async function carregarProposicoes() {
-    const el = document.getElementById("proposicoes");
-    const cache = cacheGet("jandira_prop");
+  const el = document.getElementById("proposicoes");
+  let todas = [];
 
-    if (cache) {
-        render(cache);
-        return;
-    }
-
+  for (const ano of ANOS) {
     try {
-        const todas = await buscarTodasProposicoes();
-        const filtradas = todas.filter(p => p.ano >= ANO_INICIAL);
-        cacheSet("jandira_prop", filtradas);
-        render(filtradas);
-    } catch {
-        el.innerHTML = "<p>Erro ao carregar dados.</p>";
+      const dataUrl = `http://dadosabertos.camara.leg.br/arquivos/proposicoes/json/proposicoes-${ano}.json`;
+      const json = await fetchJson(dataUrl);
+      const itens = json.proposicoes || json;
+      todas = todas.concat(itens.filter(p =>
+        p.autores && p.autores.some(a => a.nomeParlamentar === NOME_DEPUTADA)
+      ));
+    } catch (e) {
+      console.warn("Erro ao baixar ou processar proposições do ano " + ano);
     }
-}
+  }
 
-// Render
-function render(lista) {
-    const el = document.getElementById("proposicoes");
+  if (!todas.length) {
+    el.innerHTML = "<p>Nenhuma proposição encontrada para Jandira Feghali nos anos selecionados.</p>";
+    return;
+  }
 
-    if (!lista.length) {
-        el.innerHTML = "<p>Nenhuma proposição encontrada.</p>";
-        return;
-    }
+  const stats = {};
+  todas.forEach(p => stats[p.siglaTipo] = (stats[p.siglaTipo] || 0) + 1);
 
-    const stats = {};
-    lista.forEach(p => {
-        stats[p.siglaTipo] = (stats[p.siglaTipo] || 0) + 1;
-    });
+  let html = "<div class='stats'><strong>📊 Estatísticas</strong><ul>";
+  for (const t in stats) html += `<li>${t}: ${stats[t]}</li>`;
+  html += "</ul></div>";
 
-    let statsHtml = "<div class='stats'><strong>📊 Estatísticas</strong><ul>";
-    for (const t in stats) {
-        statsHtml += `<li>${t}: ${stats[t]}</li>`;
-    }
-    statsHtml += "</ul></div>";
+  html += `<p class='small'>📌 Total: ${todas.length} proposições</p>`;
 
-    el.innerHTML = `
-        ${statsHtml}
-        <p class="small">📌 Total: ${lista.length} proposições desde 2023</p>
-    `;
+  todas.forEach(p => {
+    const relevante = ["PL","PEC","PDL"].includes(p.siglaTipo);
+    html += `
+      <div class="item ${relevante ? "relevante" : ""}">
+        <p><span class="label">${p.siglaTipo} ${p.numero}/${p.ano}</span>
+        ${relevante ? " ⭐ Relevante" : ""}</p>
+        <p><span class="label">Ementa:</span> ${p.ementa || "—"}</p>
+        <p>🔗 <a href="https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${p.id}" target="_blank">Ver na Câmara</a></p>
+      </div>`;
+  });
 
-    lista.forEach(p => {
-        const relevante = ["PL","PEC","PDL"].includes(p.siglaTipo);
-        el.innerHTML += `
-        <div class="item ${relevante ? "relevante" : ""}">
-            <p><span class="label">${p.siglaTipo} ${p.numero}/${p.ano}</span>
-            ${relevante ? " ⭐ Relevante" : ""}</p>
-            <p><span class="label">Ementa:</span> ${p.ementa || "—"}</p>
-            <p>🔗 <a href="${p.uri}" target="_blank">Ver na Câmara</a></p>
-        </div>`;
-    });
+  el.innerHTML = html;
 }
 
 document.addEventListener("DOMContentLoaded", carregarProposicoes);
