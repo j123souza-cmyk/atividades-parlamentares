@@ -6,258 +6,148 @@
 
 <style>
 body { font-family: Arial, sans-serif; margin: 20px; }
-
-#controles {
-  margin-bottom: 15px;
-  display: flex;
-  gap: 20px;
-  align-items: center;
-}
-
-select, input {
-  padding: 6px;
-  font-size: 14px;
-}
-
-#contador {
-  font-weight: bold;
-  margin-bottom: 10px;
-}
-
-.evento {
-  padding: 10px;
-  border-bottom: 1px solid #ccc;
-  cursor: pointer;
-}
-
-.evento:hover { background: #f2f2f2; }
-
-.detalhe {
-  margin-top: 8px;
-  padding: 10px;
-  background: #fafafa;
-  border-left: 3px solid #005ea8;
-}
-
-.oculto { display: none; }
-
-.proposicao { margin-bottom: 16px; }
-.resultado { font-style: italic; margin: 6px 0; }
-.votos { font-weight: bold; margin-top: 4px; }
-.video { margin: 8px 0; }
-
-.highlight { font-weight: bold; color: red; }
-.sinaliza { color: blue; font-weight: bold; margin-left: 6px; }
+.evento { padding:10px; border-bottom:1px solid #ccc; cursor:pointer }
+.evento:hover { background:#f2f2f2 }
+.detalhe { margin-top:10px; padding:10px; background:#fafafa; border-left:4px solid #005ea8 }
+.oculto { display:none }
+.proposicao { margin-bottom:16px }
+.proposicao strong { display:block }
+.relator { color:#005ea8; font-weight:bold }
+.carregando { font-style:italic; color:#777 }
 </style>
 </head>
 
 <body>
 
-<h2>Últimas Sessões do Plenário</h2>
-
-<div id="controles">
-  <div>
-    Período:
-    <select id="periodo">
-      <option value="3" selected>Últimos 3 meses</option>
-      <option value="6">Últimos 6 meses</option>
-    </select>
-  </div>
-  <div style="flex:1;">
-    🔎 <input type="text" id="buscaGeral" placeholder="Buscar texto nas sessões…" />
-  </div>
-</div>
-
-<div id="contador"></div>
-<div id="status">Carregando sessões…</div>
+<h2>Sessões do Plenário</h2>
 <div id="lista"></div>
 
 <script>
 const BASE = "https://dadosabertos.camara.leg.br/api/v2";
 const lista = document.getElementById("lista");
-const status = document.getElementById("status");
-const seletorPeriodo = document.getElementById("periodo");
-const buscaGeral = document.getElementById("buscaGeral");
-const contador = document.getElementById("contador");
 
-// Cache
-const cacheSessaoDOM = {};          // DOM pronto por sessão
-const cacheDetalheProposicao = {};  // autoria + situação
+/* ======================
+   CACHES GLOBAIS
+====================== */
+const cacheProps = {};      // proposições (autoria + situação)
+const cacheSessao = {};     // sessões já carregadas
 
-let sessoesTotais = 0;
-let sessoesCarregadas = 0;
-
-/* =====================
-   DETALHES DA PROPOSIÇÃO
-===================== */
-async function obterDetalhesProposicao(id) {
-  if (cacheDetalheProposicao[id]) return cacheDetalheProposicao[id];
-
-  let autoria = "Autoria não informada";
-  let situacao = "Situação não informada";
-
-  try {
-    const dados = (await (await fetch(`${BASE}/proposicoes/${id}`)).json()).dados;
-
-    if (dados?.statusProposicao?.descricaoSituacao) {
-      situacao = dados.statusProposicao.descricaoSituacao;
-    }
-
-    const autores = (await (await fetch(`${BASE}/proposicoes/${id}/autores`)).json()).dados || [];
-    if (autores.length) {
-      autoria = autores.map(a =>
-        a.nome + (a.siglaPartido ? ` (${a.siglaPartido}${a.siglaUf ? "-" + a.siglaUf : ""})` : "")
-      ).join(", ");
-    }
-  } catch {}
-
-  return cacheDetalheProposicao[id] = { autoria, situacao };
-}
-
-/* =====================
-   BUSCAR SESSÕES
-===================== */
-async function carregarSessoes() {
-  lista.innerHTML = "";
-  status.innerText = "Carregando sessões…";
-  contador.innerText = "";
-
-  const meses = parseInt(seletorPeriodo.value);
-  const fim = new Date();
+/* ======================
+   CARREGAR SESSÕES
+====================== */
+(async function carregarSessoes() {
+  const hoje = new Date();
   const inicio = new Date();
-  inicio.setMonth(fim.getMonth() - meses);
+  inicio.setMonth(hoje.getMonth() - 3);
 
-  let pagina = 1;
-  let sessoes = [];
+  const resp = await fetch(
+    `${BASE}/eventos?dataInicio=${inicio.toISOString().slice(0,10)}&dataFim=${hoje.toISOString().slice(0,10)}&itens=50&ordenarPor=dataHoraInicio&ordem=DESC`
+  );
+  const dados = (await resp.json()).dados || [];
 
-  while (true) {
-    const dados = (await (await fetch(
-      `${BASE}/eventos?dataInicio=${inicio.toISOString().slice(0,10)}&dataFim=${fim.toISOString().slice(0,10)}&ordenarPor=dataHoraInicio&ordem=DESC&pagina=${pagina}&itens=100`
-    )).json()).dados || [];
+  dados.filter(e => e.titulo?.toLowerCase().includes("sessão"))
+    .forEach(criarSessao);
+})();
 
-    if (!dados.length) break;
-
-    dados.forEach(ev => {
-      const t = ((ev.titulo || "") + (ev.descricao || "")).toLowerCase();
-      if (t.includes("sessão") && !t.includes("audiência")) sessoes.push(ev);
-    });
-    pagina++;
-  }
-
-  sessoes.sort((a,b) => new Date(b.dataHoraInicio) - new Date(a.dataHoraInicio));
-  sessoesTotais = sessoes.length;
-  sessoesCarregadas = 0;
-
-  sessoes.forEach(ev => {
-    criarSessao(ev);
-    sinal(ev.id, true);
-  });
-
-  for (const ev of sessoes) {
-    await preCarregarSessao(ev);
-    sinal(ev.id, false);
-    contador.innerText = `Carregando ${++sessoesCarregadas}/${sessoesTotais} sessões…`;
-  }
-
-  contador.innerText = `Concluído: ${sessoesCarregadas}/${sessoesTotais}`;
-  aplicarBusca();
-}
-
-/* =====================
-   SESSÃO
-===================== */
+/* ======================
+   CRIAR BLOCO DA SESSÃO
+====================== */
 function criarSessao(ev) {
   const div = document.createElement("div");
   div.className = "evento";
-  div.id = `sessao-${ev.id}`;
   div.innerHTML = `
-    <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong>
-    <span class="sinaliza"></span><br>
+    <strong>${new Date(ev.dataHoraInicio).toLocaleString()}</strong><br>
     Sessão do Plenário
     <div id="det-${ev.id}" class="detalhe oculto">
-      <div class="lista-props"></div>
+      <div class="lista-props carregando">Clique para carregar proposições…</div>
     </div>
   `;
-  div.onclick = () => abrirSessao(ev.id, ev);
+  div.onclick = () => abrirSessao(ev);
   lista.appendChild(div);
 }
 
-function sinal(id, on) {
-  document.querySelector(`#sessao-${id} .sinaliza`).innerText =
-    on ? " ⏳ Carregando proposições…" : "";
-}
+/* ======================
+   ABRIR SESSÃO
+====================== */
+async function abrirSessao(ev) {
+  const box = document.getElementById(`det-${ev.id}`);
+  box.classList.toggle("oculto");
 
-async function preCarregarSessao(ev) {
-  if (cacheSessaoDOM[ev.id]) return;
+  if (cacheSessao[ev.id] || box.classList.contains("oculto")) return;
 
-  const container = document.createElement("div");
+  const container = box.querySelector(".lista-props");
+  container.innerHTML = "Carregando proposições…";
 
-  const votacoes = (await (await fetch(`${BASE}/eventos/${ev.id}/votacoes`)).json()).dados || [];
+  const votResp = await fetch(`${BASE}/eventos/${ev.id}/votacoes`);
+  const votacoes = (await votResp.json()).dados || [];
+
+  container.innerHTML = "";
+
   for (const v of votacoes) {
-    const voto = (await (await fetch(`${BASE}/votacoes/${v.id}`)).json()).dados;
-    if (!voto?.proposicoesAfetadas) continue;
+    let voto;
+    try {
+      voto = (await (await fetch(`${BASE}/votacoes/${v.id}`)).json()).dados;
+    } catch { continue; }
 
     const relator = voto.relatores?.map(r =>
       r.nome + (r.siglaPartido ? ` (${r.siglaPartido}${r.siglaUf ? "-" + r.siglaUf : ""})` : "")
-    ).join(", ") || "";
+    ).join(", ");
+
+    if (!voto?.proposicoesAfetadas?.length) {
+      container.innerHTML += `<div class="proposicao"><em>Votação sem proposição vinculada</em></div>`;
+      continue;
+    }
 
     for (const p of voto.proposicoesAfetadas) {
-      const det = await obterDetalhesProposicao(p.id);
-      const div = document.createElement("div");
-      div.className = "proposicao";
-      div.innerHTML = `
-        ➡️ <strong>${p.siglaTipo} ${p.numero}/${p.ano}</strong><br>
-        ${p.ementa || ""}<br>
-        <strong>Autoria:</strong> ${det.autoria}<br>
-        <strong>Situação:</strong> ${det.situacao}<br>
-        ${relator ? `<strong>Relator:</strong> ${relator}<br>` : ""}
-        <span class="resultado"><strong>Resultado:</strong> ${voto.resultado || voto.descricao || ""}</span>
+      const prop = await obterProposicao(p);
+
+      container.innerHTML += `
+        <div class="proposicao">
+          <strong>${prop.siglaTipo} ${prop.numero}/${prop.ano}</strong>
+          ${prop.ementa || ""}
+          <div><strong>Autoria:</strong> ${prop.autoria}</div>
+          <div><strong>Situação:</strong> ${prop.situacao}</div>
+          ${relator ? `<div class="relator">Relator: ${relator}</div>` : ""}
+          <div><strong>Resultado:</strong> ${voto.resultado || voto.descricao || ""}</div>
+        </div>
       `;
-      container.appendChild(div);
     }
   }
 
-  cacheSessaoDOM[ev.id] = container.cloneNode(true);
+  cacheSessao[ev.id] = true;
 }
 
-function abrirSessao(id, ev) {
-  const box = document.getElementById(`det-${id}`);
-  box.classList.toggle("oculto");
+/* ======================
+   PROPOSIÇÃO (CACHE + FALLBACK)
+====================== */
+async function obterProposicao(p) {
+  if (cacheProps[p.id]) return cacheProps[p.id];
 
-  const listaProps = box.querySelector(".lista-props");
-  listaProps.innerHTML = "";
-  if (cacheSessaoDOM[id]) {
-    listaProps.appendChild(cacheSessaoDOM[id].cloneNode(true));
-  }
-  destacarPalavra(id);
+  let autoria = "Não informada";
+  let situacao = "Não informada";
+
+  try {
+    const r = await fetch(`${BASE}/proposicoes/${p.id}`);
+    if (r.ok) {
+      const d = (await r.json()).dados;
+      situacao = d?.statusProposicao?.descricaoSituacao || situacao;
+    }
+
+    const ra = await fetch(`${BASE}/proposicoes/${p.id}/autores`);
+    if (ra.ok) {
+      const a = (await ra.json()).dados || [];
+      autoria = a.map(x =>
+        x.nome + (x.siglaPartido ? ` (${x.siglaPartido}${x.siglaUf ? "-" + x.siglaUf : ""})` : "")
+      ).join(", ") || autoria;
+    }
+  } catch {}
+
+  return cacheProps[p.id] = {
+    ...p,
+    autoria,
+    situacao
+  };
 }
-
-/* =====================
-   BUSCA
-===================== */
-function aplicarBusca() {
-  const termo = buscaGeral.value.toLowerCase();
-  document.querySelectorAll(".evento").forEach(e => {
-    const id = e.id.replace("sessao-", "");
-    e.querySelector(".sinaliza").innerText =
-      termo && cacheSessaoDOM[id]?.textContent.toLowerCase().includes(termo)
-        ? " 🔍 Palavra encontrada" : "";
-  });
-}
-
-function destacarPalavra(id) {
-  const termo = buscaGeral.value;
-  if (!termo) return;
-
-  const props = document.querySelectorAll(`#det-${id} .proposicao`);
-  const rx = new RegExp(`(${termo})`, "gi");
-  props.forEach(p => p.innerHTML = p.innerHTML.replace(rx, "<span class='highlight'>$1</span>"));
-}
-
-buscaGeral.addEventListener("input", aplicarBusca);
-seletorPeriodo.addEventListener("change", carregarSessoes);
-
-carregarSessoes();
 </script>
 
 </body>
