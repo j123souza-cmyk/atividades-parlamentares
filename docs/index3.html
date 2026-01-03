@@ -12,12 +12,15 @@ h1 { text-align: center; }
 .accordion-header { padding: 15px; background: #1f5aa6; color: #fff; font-weight: bold; display: flex; justify-content: space-between; cursor: pointer; }
 .accordion-content { display: none; padding: 20px; }
 .item { border-left: 5px solid #1f5aa6; padding-left: 12px; margin-bottom: 14px; }
-.relevante { border-color: #d62828; background: #fff4f4; }
 .label { font-weight: bold; }
-.stats { background: #eef3fb; padding: 12px; border-radius: 6px; margin-bottom: 15px; }
-.small { font-size: 14px; color: #555; }
+.alerta {
+    background: #fff3cd;
+    border-left: 5px solid #ff9800;
+    padding: 15px;
+    border-radius: 6px;
+    margin-bottom: 15px;
+}
 a { color: #1f5aa6; text-decoration: none; }
-a:hover { text-decoration: underline; }
 </style>
 </head>
 
@@ -27,22 +30,19 @@ a:hover { text-decoration: underline; }
 
     <div class="accordion">
         <div class="accordion-header" onclick="toggle(this)">
-            1️⃣ Proposições apresentadas – Mandato atual
+            1️⃣ Proposições apresentadas ou associadas – Mandato atual
             <span>▼</span>
         </div>
         <div class="accordion-content" id="proposicoes">
-            <p>Carregando proposições…</p>
+            <p>Carregando dados…</p>
         </div>
     </div>
 </div>
 
 <script>
-const DEPUTADO_ID = 74646; // Aécio Neves — ID oficial da Câmara
-const ANO_INICIAL = 2023;
-const CACHE_TTL = 86400000; // 24h
+const DEPUTADO_ID = 74646;
 const CORS_PROXY = "https://api.allorigins.win/raw?url=";
 
-// Toggle accordion
 function toggle(header) {
     const content = header.nextElementSibling;
     const arrow = header.querySelector("span");
@@ -50,102 +50,50 @@ function toggle(header) {
     arrow.textContent = content.style.display === "block" ? "▲" : "▼";
 }
 
-// Cache functions
-function cacheGet(key) {
-    const raw = localStorage.getItem(key);
-    if (!raw) return null;
-    const obj = JSON.parse(raw);
-    if (Date.now() - obj.time > CACHE_TTL) return null;
-    return obj.data;
-}
-function cacheSet(key, data) {
-    localStorage.setItem(key, JSON.stringify({ time: Date.now(), data }));
-}
-
-// Fetch API with proxy
 async function api(url) {
-    const proxyUrl = CORS_PROXY + encodeURIComponent(url);
-    const response = await fetch(proxyUrl);
-    if (!response.ok) throw new Error("Erro ao acessar API");
-    const json = await response.json();
-    return json.dados || [];
+    const r = await fetch(CORS_PROXY + encodeURIComponent(url));
+    const j = await r.json();
+    return j.dados || [];
 }
 
-// Pagination to collect all propositions
-async function fetchAllProposicoes() {
-    let page = 1;
-    let all = [];
-    while (true) {
-        const dados = await api(
-            `https://dadosabertos.camara.leg.br/api/v2/deputados/${DEPUTADO_ID}/proposicoes` +
-            `?itens=50&pagina=${page}&ordem=DESC&ordenarPor=ano`
-        );
-        if (!dados.length) break;
-        all = all.concat(dados);
-        page++;
-    }
-    return all;
-}
-
-// Load propositions
 async function carregarProposicoes() {
     const el = document.getElementById("proposicoes");
-    const cache = cacheGet("aecio_prop_paginado");
-
-    if (cache) {
-        renderProposicoes(cache);
-        return;
-    }
 
     try {
-        const todas = await fetchAllProposicoes();
-        const filtradas = todas.filter(p => p.ano >= ANO_INICIAL);
-        cacheSet("aecio_prop_paginado", filtradas);
-        renderProposicoes(filtradas);
+        const dados = await api(
+            `https://dadosabertos.camara.leg.br/api/v2/deputados/${DEPUTADO_ID}/proposicoes?itens=20&ordem=DESC&ordenarPor=ano`
+        );
+
+        if (!dados.length) {
+            el.innerHTML = `
+                <div class="alerta">
+                    <p><strong>ℹ️ Informação oficial:</strong></p>
+                    <p>Até o momento, não constam proposições registradas na base da Câmara
+                    com autoria direta do deputado <strong>Aécio Neves</strong> no mandato atual (2023-2027).</p>
+                    <p>Isso não impede sua atuação em votações, articulações políticas,
+                    relatorias ou proposições coletivas apresentadas por bancadas ou lideranças.</p>
+                </div>
+            `;
+            return;
+        }
+
+        el.innerHTML = "";
+        dados.forEach(p => {
+            el.innerHTML += `
+                <div class="item">
+                    <p class="label">${p.siglaTipo} ${p.numero}/${p.ano}</p>
+                    <p>${p.ementa || "—"}</p>
+                    <a href="${p.uri}" target="_blank">Ver na Câmara</a>
+                </div>
+            `;
+        });
+
     } catch (e) {
-        el.innerHTML = "<p>Erro ao carregar proposições.</p>";
+        el.innerHTML = "<p>Erro ao carregar informações.</p>";
     }
-}
-
-// Render propositions
-function renderProposicoes(lista) {
-    const el = document.getElementById("proposicoes");
-    if (!lista.length) {
-        el.innerHTML = "<p>Nenhuma proposição encontrada para o mandato atual.</p>";
-        return;
-    }
-
-    // Statistics by type
-    const stats = {};
-    lista.forEach(p => {
-        stats[p.siglaTipo] = (stats[p.siglaTipo] || 0) + 1;
-    });
-
-    let statsHtml = "<div class='stats'><strong>📊 Estatísticas (mandato atual)</strong><ul>";
-    for (const tipo in stats) {
-        statsHtml += `<li>${tipo}: ${stats[tipo]}</li>`;
-    }
-    statsHtml += "</ul></div>";
-
-    el.innerHTML = `
-        ${statsHtml}
-        <p class="small">📌 Total: ${lista.length} proposições desde ${ANO_INICIAL}</p>
-    `;
-
-    lista.forEach(p => {
-        const relevante = ["PL","PEC","PDL"].includes(p.siglaTipo);
-        el.innerHTML += `
-        <div class="item ${relevante ? "relevante" : ""}">
-            <p><span class="label">${p.siglaTipo} ${p.numero}/${p.ano}</span>
-            ${relevante ? " ⭐ <strong>Relevante</strong>" : ""}</p>
-            <p><span class="label">Ementa:</span> ${p.ementa || "—"}</p>
-            <p>🔗 <a href="${p.uri}" target="_blank">Ver proposição no site da Câmara</a></p>
-        </div>`;
-    });
 }
 
 document.addEventListener("DOMContentLoaded", carregarProposicoes);
 </script>
-
 </body>
 </html>
