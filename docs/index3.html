@@ -11,13 +11,16 @@ body {
     padding: 20px;
 }
 .container {
-    max-width: 1000px;
+    max-width: 1100px;
     margin: auto;
+}
+h1 {
+    text-align: center;
 }
 .accordion {
     background: #fff;
     border-radius: 8px;
-    margin-bottom: 15px;
+    margin-bottom: 16px;
     box-shadow: 0 2px 6px rgba(0,0,0,.1);
 }
 .accordion-header {
@@ -34,12 +37,29 @@ body {
     padding: 20px;
 }
 .item {
-    border-left: 4px solid #1f5aa6;
-    padding-left: 10px;
-    margin-bottom: 12px;
+    border-left: 5px solid #1f5aa6;
+    padding-left: 12px;
+    margin-bottom: 14px;
+}
+.relevante {
+    border-color: #d62828;
+    background: #fff4f4;
 }
 .label {
     font-weight: bold;
+}
+.stats {
+    background: #eef3fb;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 15px;
+}
+a {
+    color: #1f5aa6;
+    text-decoration: none;
+}
+a:hover {
+    text-decoration: underline;
 }
 .small {
     font-size: 14px;
@@ -52,31 +72,24 @@ body {
 <div class="container">
     <h1>Atuação Parlamentar – Glauber Braga (PSOL-RJ)</h1>
 
+    <!-- PROPOSIÇÕES -->
     <div class="accordion">
         <div class="accordion-header" onclick="toggle(this)">
-            1️⃣ Proposições apresentadas
+            1️⃣ Proposições apresentadas – Mandato atual
             <span>▼</span>
         </div>
         <div class="accordion-content" id="proposicoes">
-            <p>Carregando proposições...</p>
-        </div>
-    </div>
-
-    <div class="accordion">
-        <div class="accordion-header" onclick="toggle(this)">
-            2️⃣ Relação de votações
-            <span>▼</span>
-        </div>
-        <div class="accordion-content" id="votacoes">
-            <p>Carregando votações...</p>
+            <p>Carregando proposições…</p>
         </div>
     </div>
 </div>
 
 <script>
 const DEPUTADO_ID = 152605;
+const ANO_INICIAL = 2023;
 const CACHE_TTL = 86400000;
 
+// -------- UI --------
 function toggle(h) {
     const c = h.nextElementSibling;
     const a = h.querySelector("span");
@@ -84,6 +97,7 @@ function toggle(h) {
     a.textContent = c.style.display === "block" ? "▲" : "▼";
 }
 
+// -------- CACHE --------
 function cacheGet(k) {
     const v = localStorage.getItem(k);
     if (!v) return null;
@@ -91,31 +105,30 @@ function cacheGet(k) {
     if (Date.now() - o.t > CACHE_TTL) return null;
     return o.d;
 }
-
 function cacheSet(k, d) {
     localStorage.setItem(k, JSON.stringify({ t: Date.now(), d }));
 }
 
+// -------- API --------
 async function api(url) {
-    const r = await fetch(url, {
-        headers: { "Accept": "application/json" }
-    });
-    if (!r.ok) throw new Error("Erro API");
-    return (await r.json()).dados || [];
+    const r = await fetch(url, { headers: { Accept: "application/json" } });
+    const j = await r.json();
+    return j.dados || [];
 }
 
-// ---------------- PROPOSIÇÕES ----------------
+// -------- PROPOSIÇÕES --------
 async function carregarProposicoes() {
     const el = document.getElementById("proposicoes");
-    const cache = cacheGet("prop_glauber");
+    const cache = cacheGet("prop_glauber_atual");
     if (cache) return renderProposicoes(cache);
 
     try {
         const dados = await api(
-            `https://dadosabertos.camara.leg.br/api/v2/deputados/${DEPUTADO_ID}/proposicoes?ordem=DESC&ordenarPor=ano&itens=50`
+            `https://dadosabertos.camara.leg.br/api/v2/deputados/${DEPUTADO_ID}/proposicoes?itens=100&ordem=DESC&ordenarPor=ano`
         );
-        cacheSet("prop_glauber", dados);
-        renderProposicoes(dados);
+        const filtrados = dados.filter(p => p.ano >= ANO_INICIAL);
+        cacheSet("prop_glauber_atual", filtrados);
+        renderProposicoes(filtrados);
     } catch {
         el.innerHTML = "<p>Erro ao carregar proposições.</p>";
     }
@@ -127,53 +140,43 @@ function renderProposicoes(lista) {
         el.innerHTML = "<p>Nenhuma proposição encontrada.</p>";
         return;
     }
-    el.innerHTML = `<p class="small">📌 ${lista.length} proposições encontradas</p>`;
+
+    // ---------- ESTATÍSTICAS ----------
+    const stats = {};
     lista.forEach(p => {
+        stats[p.siglaTipo] = (stats[p.siglaTipo] || 0) + 1;
+    });
+
+    let statsHtml = "<div class='stats'><strong>📊 Estatísticas (mandato atual)</strong><ul>";
+    for (const t in stats) {
+        statsHtml += `<li>${t}: ${stats[t]}</li>`;
+    }
+    statsHtml += "</ul></div>";
+
+    el.innerHTML = `
+        ${statsHtml}
+        <p class="small">📌 Total: ${lista.length} proposições desde 2023</p>
+    `;
+
+    lista.forEach(p => {
+        const relevante = ["PL", "PEC", "PDL"].includes(p.siglaTipo);
         el.innerHTML += `
-        <div class="item">
-            <p><span class="label">${p.siglaTipo} ${p.numero}/${p.ano}</span></p>
+        <div class="item ${relevante ? "relevante" : ""}">
+            <p>
+                <span class="label">${p.siglaTipo} ${p.numero}/${p.ano}</span>
+                ${relevante ? " ⭐ <strong>Relevante</strong>" : ""}
+            </p>
             <p><span class="label">Ementa:</span> ${p.ementa || "—"}</p>
+            <p>
+                🔗 <a href="${p.uri}" target="_blank">
+                    Ver proposição no site da Câmara
+                </a>
+            </p>
         </div>`;
     });
 }
 
-// ---------------- VOTAÇÕES ----------------
-async function carregarVotacoes() {
-    const el = document.getElementById("votacoes");
-    const cache = cacheGet("vot_glauber");
-    if (cache) return renderVotacoes(cache);
-
-    try {
-        const dados = await api(
-            `https://dadosabertos.camara.leg.br/api/v2/deputados/${DEPUTADO_ID}/votacoes?itens=50`
-        );
-        cacheSet("vot_glauber", dados);
-        renderVotacoes(dados);
-    } catch {
-        el.innerHTML = "<p>Erro ao carregar votações.</p>";
-    }
-}
-
-function renderVotacoes(lista) {
-    const el = document.getElementById("votacoes");
-    if (!lista.length) {
-        el.innerHTML = "<p>Nenhuma votação nominal registrada.</p>";
-        return;
-    }
-    el.innerHTML = `<p class="small">📌 ${lista.length} votações registradas</p>`;
-    lista.forEach(v => {
-        el.innerHTML += `
-        <div class="item">
-            <p><span class="label">${v.siglaTipo || "—"} ${v.numero || ""}/${v.ano || ""}</span></p>
-            <p><span class="label">Voto:</span> ${v.voto || "—"}</p>
-        </div>`;
-    });
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-    carregarProposicoes();
-    carregarVotacoes();
-});
+document.addEventListener("DOMContentLoaded", carregarProposicoes);
 </script>
 </body>
 </html>
