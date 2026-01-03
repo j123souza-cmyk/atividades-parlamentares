@@ -2,193 +2,182 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Atuação Parlamentar</title>
+<title>Atuação Parlamentar – Glauber Braga</title>
 
 <style>
-    body {
-        font-family: Arial, Helvetica, sans-serif;
-        background: #f4f6f8;
-        margin: 0;
-        padding: 20px;
-        color: #333;
-    }
-
-    .container {
-        max-width: 900px;
-        margin: auto;
-    }
-
-    h1 {
-        text-align: center;
-        margin-bottom: 30px;
-    }
-
-    .accordion {
-        background-color: #ffffff;
-        border-radius: 8px;
-        margin-bottom: 15px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-        overflow: hidden;
-    }
-
-    .accordion-header {
-        padding: 15px 20px;
-        cursor: pointer;
-        font-size: 18px;
-        font-weight: bold;
-        background-color: #1f5aa6;
-        color: #fff;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-    .accordion-header:hover {
-        background-color: #174884;
-    }
-
-    .accordion-content {
-        display: none;
-        padding: 20px;
-        background-color: #fff;
-    }
-
-    .accordion-content p {
-        margin: 8px 0;
-    }
-
-    .section-title {
-        font-weight: bold;
-        margin-top: 15px;
-    }
-
-    .proposition,
-    .voting {
-        border-left: 4px solid #1f5aa6;
-        padding-left: 12px;
-        margin: 15px 0;
-    }
-
-    .label {
-        font-weight: bold;
-    }
-
-    .icon {
-        font-size: 20px;
-    }
+body {
+    font-family: Arial, sans-serif;
+    background: #f4f6f8;
+    margin: 0;
+    padding: 20px;
+    color: #333;
+}
+.container {
+    max-width: 1000px;
+    margin: auto;
+}
+h1 {
+    text-align: center;
+    margin-bottom: 30px;
+}
+.accordion {
+    background: #fff;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    box-shadow: 0 2px 6px rgba(0,0,0,.1);
+}
+.accordion-header {
+    padding: 15px 20px;
+    font-weight: bold;
+    font-size: 18px;
+    background: #1f5aa6;
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+}
+.accordion-content {
+    display: none;
+    padding: 20px;
+}
+.item {
+    border-left: 4px solid #1f5aa6;
+    padding-left: 12px;
+    margin-bottom: 15px;
+}
+.label {
+    font-weight: bold;
+}
+.small {
+    font-size: 14px;
+    color: #555;
+}
 </style>
-</head>
 
+</head>
 <body>
 
 <div class="container">
-    <h1>Atuação Parlamentar</h1>
+    <h1>Atuação Parlamentar – Glauber Braga (PSOL-RJ)</h1>
 
-    <!-- 1️⃣ Proposições -->
+    <!-- PROPOSIÇÕES -->
     <div class="accordion">
-        <div class="accordion-header" onclick="toggleAccordion(this)">
-            1️⃣ Proposições apresentadas (clique para abrir)
-            <span class="icon">▼</span>
+        <div class="accordion-header" onclick="toggle(this)">
+            1️⃣ Proposições apresentadas (dados reais)
+            <span>▼</span>
         </div>
-        <div class="accordion-content">
-
-            <p><span class="label">📌 Quantidade de proposições apresentadas</span></p>
-            <p>📊 Ordem de grandeza: dezenas de proposições por ano</p>
-            <p>Atuação constante como autor e coautor</p>
-
-            <p class="section-title">📌 Tipos mais frequentes</p>
-            <ul>
-                <li>Projetos de Lei (PL)</li>
-                <li>Projetos de Decreto Legislativo (PDL)</li>
-                <li>Requerimentos de Informação (RIC)</li>
-                <li>Requerimentos de Audiência Pública e Fiscalização</li>
-            </ul>
-
-            <p class="section-title">📑 Exemplos de proposições (formato ilustrativo)</p>
-
-            <div class="proposition">
-                <p><span class="label">PL 412/2024</span></p>
-                <p><span class="label">Tema:</span> Serviços públicos</p>
-                <p><span class="label">Ementa:</span> Dispõe sobre critérios de reajuste de tarifas em concessões federais</p>
-            </div>
-
-            <div class="proposition">
-                <p><span class="label">PDL 98/2024</span></p>
-                <p><span class="label">Tema:</span> Privatizações</p>
-                <p><span class="label">Ementa:</span> Sustação de decreto que autoriza alienação de ativos estatais</p>
-            </div>
-
-            <div class="proposition">
-                <p><span class="label">RIC 155/2024</span></p>
-                <p><span class="label">Tema:</span> Transparência administrativa</p>
-                <p><span class="label">Ementa:</span> Solicita informações sobre contratos emergenciais firmados pelo Executivo</p>
-            </div>
-
-            <div class="proposition">
-                <p><span class="label">REQ 233/2024</span></p>
-                <p><span class="label">Tema:</span> Fiscalização</p>
-                <p><span class="label">Ementa:</span> Requer realização de audiência pública para apuração de irregularidades</p>
-            </div>
-
+        <div class="accordion-content" id="proposicoes">
+            <p>Carregando proposições...</p>
         </div>
     </div>
 
-    <!-- 2️⃣ Votações -->
+    <!-- VOTAÇÕES -->
     <div class="accordion">
-        <div class="accordion-header" onclick="toggleAccordion(this)">
-            🔗 2️⃣ Relação de votações (clique para abrir)
-            <span class="icon">▼</span>
+        <div class="accordion-header" onclick="toggle(this)">
+            2️⃣ Relação de votações (dados reais)
+            <span>▼</span>
         </div>
-        <div class="accordion-content">
-
-            <p class="section-title">📑 Relação de votações (modelo demonstrativo)</p>
-
-            <div class="voting">
-                <p><span class="label">PL 412/2024</span></p>
-                <p><span class="label">Tema:</span> Serviços públicos</p>
-                <p><span class="label">Ementa:</span> Dispõe sobre critérios de reajuste de tarifas em concessões de serviços públicos federais</p>
-                <p><span class="label">Posicionamento:</span> Voto SIM</p>
-            </div>
-
-            <div class="voting">
-                <p><span class="label">PDL 98/2024</span></p>
-                <p><span class="label">Tema:</span> Privatizações</p>
-                <p><span class="label">Ementa:</span> Sustação de decreto que autoriza a alienação de ativos de empresas estatais</p>
-                <p><span class="label">Posicionamento:</span> Voto NÃO</p>
-            </div>
-
-            <div class="voting">
-                <p><span class="label">PEC 45/2023</span></p>
-                <p><span class="label">Tema:</span> Sistema tributário</p>
-                <p><span class="label">Ementa:</span> Altera o sistema de tributação sobre consumo, criando o IVA nacional</p>
-                <p><span class="label">Posicionamento:</span> Abstenção</p>
-            </div>
-
-            <div class="voting">
-                <p><span class="label">PL 233/2022</span></p>
-                <p><span class="label">Tema:</span> Direitos trabalhistas</p>
-                <p><span class="label">Ementa:</span> Dispõe sobre garantias adicionais para trabalhadores em contratos intermitentes</p>
-                <p><span class="label">Posicionamento:</span> Ausente</p>
-            </div>
-
+        <div class="accordion-content" id="votacoes">
+            <p>Carregando votações...</p>
         </div>
     </div>
-
 </div>
 
 <script>
-function toggleAccordion(header) {
-    const content = header.nextElementSibling;
-    const icon = header.querySelector(".icon");
+const DEPUTADO_ID = 152605;
+const CACHE_TEMPO = 1000 * 60 * 60 * 24; // 24h
 
-    if (content.style.display === "block") {
-        content.style.display = "none";
-        icon.textContent = "▼";
-    } else {
-        content.style.display = "block";
-        icon.textContent = "▲";
-    }
+function toggle(header) {
+    const content = header.nextElementSibling;
+    const arrow = header.querySelector("span");
+    content.style.display = content.style.display === "block" ? "none" : "block";
+    arrow.textContent = content.style.display === "block" ? "▲" : "▼";
 }
+
+// ---------- CACHE ----------
+function getCache(key) {
+    const cached = localStorage.getItem(key);
+    if (!cached) return null;
+    const data = JSON.parse(cached);
+    if (Date.now() - data.time > CACHE_TEMPO) {
+        localStorage.removeItem(key);
+        return null;
+    }
+    return data.value;
+}
+
+function setCache(key, value) {
+    localStorage.setItem(key, JSON.stringify({ time: Date.now(), value }));
+}
+
+// ---------- PROPOSIÇÕES ----------
+async function carregarProposicoes() {
+    const cache = getCache("proposicoes_glauber");
+    if (cache) {
+        renderProposicoes(cache);
+        return;
+    }
+
+    const url = `https://dadosabertos.camara.leg.br/api/v2/deputados/${DEPUTADO_ID}/proposicoes?ordem=DESC&ordenarPor=ano`;
+    const res = await fetch(url);
+    const json = await res.json();
+
+    setCache("proposicoes_glauber", json.dados);
+    renderProposicoes(json.dados);
+}
+
+function renderProposicoes(lista) {
+    const el = document.getElementById("proposicoes");
+    el.innerHTML = `
+        <p class="small">📌 Total aproximado: ${lista.length} proposições no mandato</p>
+    `;
+
+    lista.slice(0, 25).forEach(p => {
+        el.innerHTML += `
+            <div class="item">
+                <p><span class="label">${p.siglaTipo} ${p.numero}/${p.ano}</span></p>
+                <p><span class="label">Ementa:</span> ${p.ementa || "Sem ementa disponível"}</p>
+            </div>
+        `;
+    });
+}
+
+// ---------- VOTAÇÕES ----------
+async function carregarVotacoes() {
+    const cache = getCache("votacoes_glauber");
+    if (cache) {
+        renderVotacoes(cache);
+        return;
+    }
+
+    const url = `https://dadosabertos.camara.leg.br/api/v2/deputados/${DEPUTADO_ID}/votacoes`;
+    const res = await fetch(url);
+    const json = await res.json();
+
+    setCache("votacoes_glauber", json.dados);
+    renderVotacoes(json.dados);
+}
+
+function renderVotacoes(lista) {
+    const el = document.getElementById("votacoes");
+    el.innerHTML = `
+        <p class="small">📌 Total de votações nominais registradas: ${lista.length}</p>
+    `;
+
+    lista.slice(0, 25).forEach(v => {
+        el.innerHTML += `
+            <div class="item">
+                <p><span class="label">${v.siglaTipo} ${v.numero}/${v.ano}</span></p>
+                <p><span class="label">Ementa:</span> ${v.ementa || "—"}</p>
+                <p><span class="label">Voto:</span> ${v.voto || "Não registrado"}</p>
+            </div>
+        `;
+    });
+}
+
+// INIT
+carregarProposicoes();
+carregarVotacoes();
 </script>
 
 </body>
