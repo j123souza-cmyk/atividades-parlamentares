@@ -5,19 +5,19 @@
 <title>Atividade Parlamentar</title>
 
 <style>
-body { font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px; }
-.container { max-width: 1000px; margin: auto; background: #fff; padding: 20px; border-radius: 6px; }
-select { padding: 8px; width: 100%; margin-bottom: 15px; font-size: 1em; }
-details { margin-top: 15px; border: 1px solid #ccc; border-radius: 4px; background: #fafafa; }
-summary { padding: 12px; font-weight: bold; background: #e9e9e9; cursor: pointer; }
-.item { border-left: 4px solid #005aa7; padding: 10px; margin: 10px 0; background: #fff; }
-.badge { background: #005aa7; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 0.85em; }
+body { font-family: Arial, sans-serif; background:#f4f4f4; padding:20px }
+.container { max-width:1000px; margin:auto; background:#fff; padding:20px; border-radius:6px }
+select { width:100%; padding:8px; font-size:1em; margin-bottom:15px }
+details { border:1px solid #ccc; border-radius:4px; margin-top:15px; background:#fafafa }
+summary { padding:12px; font-weight:bold; background:#e9e9e9; cursor:pointer }
+.item { border-left:4px solid #005aa7; padding:10px; margin:10px 0; background:#fff }
+.badge { background:#005aa7; color:#fff; padding:4px 8px; border-radius:4px; font-size:.85em }
+.loading { color:#666; font-style:italic }
 </style>
 </head>
 
 <body>
 <div class="container">
-
 <h2>Atividade Parlamentar — Dados Oficiais</h2>
 
 <select id="deputado" onchange="carregarDados()">
@@ -28,77 +28,89 @@ summary { padding: 12px; font-weight: bold; background: #e9e9e9; cursor: pointer
 
 <details open>
 <summary>1️⃣ Proposições apresentadas</summary>
-<div id="proposicoes">Selecione um deputado…</div>
+<div id="proposicoes" class="loading">Selecione um deputado…</div>
 </details>
 
 <details>
-<summary>2️⃣ Votações (amostra real)</summary>
-<div id="votacoes">Selecione um deputado…</div>
+<summary>2️⃣ Relação de votações</summary>
+<div id="votacoes" class="loading">Selecione um deputado…</div>
 </details>
-
 </div>
 
 <script>
 const PROXY = "https://api.allorigins.win/raw?url=";
+const LEGISLATURA_ATUAL = 57; // 2023–2027
 
 async function carregarDados() {
   const id = document.getElementById("deputado").value;
 
-  document.getElementById("proposicoes").innerHTML = "Carregando proposições reais...";
-  document.getElementById("votacoes").innerHTML = "Carregando votações reais...";
+  document.getElementById("proposicoes").innerHTML = "Carregando proposições reais…";
+  document.getElementById("votacoes").innerHTML = "Verificando votações…";
 
-  // PROPOSIÇÕES
-  const urlProp = PROXY + encodeURIComponent(
-    `https://dadosabertos.camara.leg.br/api/v2/deputados/${id}/proposicoes?ordem=DESC&ordenarPor=ano`
-  );
-
-  const resProp = await fetch(urlProp);
-  const dataProp = await resProp.json();
-
-  if (!dataProp.dados || dataProp.dados.length === 0) {
-    document.getElementById("proposicoes").innerHTML = "Nenhuma proposição encontrada.";
-    return;
-  }
-
-  let htmlProp = `<span class="badge">Total encontrado: ${dataProp.dados.length}</span>`;
-
-  dataProp.dados.slice(0, 5).forEach(p => {
-    htmlProp += `
-      <div class="item">
-        <strong>${p.siglaTipo} ${p.numero}/${p.ano}</strong>
-        Ementa: ${p.ementa || "Sem ementa registrada"}
-      </div>
-    `;
-  });
-
-  document.getElementById("proposicoes").innerHTML = htmlProp;
-
-  // VOTAÇÕES (amostra real)
-  const votacoes = dataProp.dados.filter(p => p.uri).slice(0, 3);
-
-  let htmlVot = "";
-  for (const v of votacoes) {
-    const idProp = v.uri.split("/").pop();
-    const urlVot = PROXY + encodeURIComponent(
-      `https://dadosabertos.camara.leg.br/api/v2/proposicoes/${idProp}/votacoes`
+  try {
+    const urlProp = PROXY + encodeURIComponent(
+      `https://dadosabertos.camara.leg.br/api/v2/deputados/${id}/proposicoes` +
+      `?idLegislatura=${LEGISLATURA_ATUAL}&ordem=DESC&ordenarPor=ano&itens=20&pagina=1`
     );
 
-    const resVot = await fetch(urlVot);
-    const dataVot = await resVot.json();
+    const res = await fetch(urlProp);
+    const json = await res.json();
 
-    if (dataVot.dados && dataVot.dados.length > 0) {
-      htmlVot += `
-        <div class="item">
-          <strong>${v.siglaTipo} ${v.numero}/${v.ano}</strong>
-          Ementa: ${v.ementa}
-          <br>Votação registrada em plenário
-        </div>
-      `;
+    if (!json.dados || json.dados.length === 0) {
+      document.getElementById("proposicoes").innerHTML =
+        "Nenhuma proposição registrada nesta legislatura.";
+      document.getElementById("votacoes").innerHTML =
+        "Sem votações nominais vinculadas.";
+      return;
     }
-  }
 
-  document.getElementById("votacoes").innerHTML =
-    htmlVot || "Nenhuma votação nominal recente encontrada.";
+    // PROPOSIÇÕES
+    let htmlProp = `<span class="badge">Total recuperado: ${json.dados.length}</span>`;
+    json.dados.slice(0, 6).forEach(p => {
+      htmlProp += `
+        <div class="item">
+          <strong>${p.siglaTipo} ${p.numero}/${p.ano}</strong>
+          Ementa: ${p.ementa || "Não informada"}
+        </div>`;
+    });
+
+    document.getElementById("proposicoes").innerHTML = htmlProp;
+
+    // VOTAÇÕES (amostra simples)
+    let htmlVot = "";
+    let encontrouVotacao = false;
+
+    for (const p of json.dados.slice(0, 5)) {
+      if (!p.id) continue;
+
+      const urlVot = PROXY + encodeURIComponent(
+        `https://dadosabertos.camara.leg.br/api/v2/proposicoes/${p.id}/votacoes`
+      );
+
+      const vr = await fetch(urlVot);
+      const vj = await vr.json();
+
+      if (vj.dados && vj.dados.length > 0) {
+        encontrouVotacao = true;
+        htmlVot += `
+          <div class="item">
+            <strong>${p.siglaTipo} ${p.numero}/${p.ano}</strong>
+            Possui votação registrada em plenário.
+          </div>`;
+      }
+    }
+
+    document.getElementById("votacoes").innerHTML =
+      encontrouVotacao
+        ? htmlVot
+        : "As proposições listadas não tiveram votação nominal registrada.";
+
+  } catch (e) {
+    document.getElementById("proposicoes").innerHTML =
+      "Erro ao consultar dados oficiais.";
+    document.getElementById("votacoes").innerHTML =
+      "Erro ao consultar votações.";
+  }
 }
 
 carregarDados();
