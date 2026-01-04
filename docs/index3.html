@@ -7,13 +7,12 @@
 <style>
 body {
     font-family: Arial, sans-serif;
-    background: #f5f5f5;
-    margin: 0;
+    background: #f4f4f4;
     padding: 20px;
 }
 
 .container {
-    max-width: 900px;
+    max-width: 950px;
     margin: auto;
     background: #fff;
     padding: 20px;
@@ -22,6 +21,12 @@ body {
 
 h1 {
     text-align: center;
+}
+
+select {
+    width: 100%;
+    padding: 8px;
+    font-size: 1em;
     margin-bottom: 20px;
 }
 
@@ -33,10 +38,9 @@ details {
 }
 
 summary {
-    font-size: 1.1em;
     font-weight: bold;
-    cursor: pointer;
     padding: 12px;
+    cursor: pointer;
     background: #e9e9e9;
 }
 
@@ -46,23 +50,19 @@ summary {
 
 .badge {
     display: inline-block;
-    padding: 4px 8px;
     background: #005aa7;
     color: #fff;
+    padding: 4px 8px;
     border-radius: 4px;
+    margin-top: 10px;
     font-size: 0.85em;
-    margin-bottom: 8px;
 }
 
 .item {
     border-left: 4px solid #005aa7;
-    padding: 10px;
-    margin-bottom: 12px;
     background: #fff;
-}
-
-.item strong {
-    display: block;
+    padding: 10px;
+    margin-top: 10px;
 }
 
 .voto-sim { color: green; font-weight: bold; }
@@ -73,7 +73,6 @@ summary {
 ul {
     margin-top: 5px;
 }
-
 </style>
 </head>
 
@@ -83,95 +82,98 @@ ul {
 
 <h1>Atuação Parlamentar</h1>
 
-<!-- 1️⃣ PROPOSIÇÕES -->
+<label><strong>Selecione o deputado:</strong></label>
+<select id="deputadoSelect" onchange="carregarDeputado()">
+    <option value="glauber">Glauber Braga</option>
+    <option value="jandira">Jandira Feghali</option>
+    <option value="aecio">Aécio Neves</option>
+</select>
+
 <details open>
-<summary>1️⃣ Proposições apresentadas (clique para abrir)</summary>
-
-<div class="section">
-
-<div class="badge">📌 Quantidade e perfil</div>
-<ul>
-    <li>Dezenas de proposições apresentadas por ano</li>
-    <li>Atuação constante como autor e coautor</li>
-</ul>
-
-<div class="badge">📌 Tipos mais frequentes</div>
-<ul>
-    <li>Projetos de Lei (PL)</li>
-    <li>Projetos de Decreto Legislativo (PDL)</li>
-    <li>Requerimentos de Informação (RIC)</li>
-    <li>Requerimentos de Audiência Pública e Fiscalização</li>
-</ul>
-
-<div class="badge">📑 Exemplos de proposições</div>
-
-<div class="item">
-<strong>PL 412/2024</strong>
-Tema: Serviços públicos<br>
-Ementa: Dispõe sobre critérios de reajuste de tarifas em concessões federais
-</div>
-
-<div class="item">
-<strong>PDL 98/2024</strong>
-Tema: Privatizações<br>
-Ementa: Sustação de decreto que autoriza alienação de ativos estatais
-</div>
-
-<div class="item">
-<strong>RIC 155/2024</strong>
-Tema: Transparência administrativa<br>
-Ementa: Solicita informações sobre contratos emergenciais firmados pelo Executivo
-</div>
-
-<div class="item">
-<strong>REQ 233/2024</strong>
-Tema: Fiscalização<br>
-Ementa: Requer realização de audiência pública para apuração de irregularidades
-</div>
-
-</div>
+<summary>1️⃣ Proposições apresentadas</summary>
+<div class="section" id="proposicoes"></div>
 </details>
 
-<!-- 2️⃣ VOTAÇÕES -->
 <details>
-<summary>2️⃣ Relação de votações (clique para abrir)</summary>
-
-<div class="section">
-
-<div class="badge">📑 Relação de votações (modelo demonstrativo)</div>
-
-<div class="item">
-<strong>PL 412/2024</strong>
-Tema: Serviços públicos<br>
-Ementa: Dispõe sobre critérios de reajuste de tarifas em concessões de serviços públicos federais<br>
-Posicionamento: <span class="voto-sim">Voto SIM</span>
-</div>
-
-<div class="item">
-<strong>PDL 98/2024</strong>
-Tema: Privatizações<br>
-Ementa: Sustação de decreto que autoriza a alienação de ativos de empresas estatais<br>
-Posicionamento: <span class="voto-nao">Voto NÃO</span>
-</div>
-
-<div class="item">
-<strong>PEC 45/2023</strong>
-Tema: Sistema tributário<br>
-Ementa: Altera o sistema de tributação sobre consumo, criando o IVA nacional<br>
-Posicionamento: <span class="voto-abstencao">Abstenção</span>
-</div>
-
-<div class="item">
-<strong>PL 233/2022</strong>
-Tema: Direitos trabalhistas<br>
-Ementa: Dispõe sobre garantias adicionais para trabalhadores em contratos intermitentes<br>
-Posicionamento: <span class="voto-ausente">Ausente</span>
-</div>
-
-</div>
+<summary>2️⃣ Relação de votações</summary>
+<div class="section" id="votacoes"></div>
 </details>
 
 </div>
+
+<script>
+const dados = {
+    glauber: {
+        proposicoes: {
+            perfil: [
+                "Dezenas de proposições por ano",
+                "Atuação constante como autor e coautor"
+            ],
+            tipos: [
+                "Projetos de Lei (PL)",
+                "Projetos de Decreto Legislativo (PDL)",
+                "Requerimentos de Informação (RIC)",
+                "Requerimentos de Audiência Pública e Fiscalização"
+            ],
+            exemplos: [
+                ["PL 412/2024", "Serviços públicos", "Reajuste de tarifas em concessões federais"],
+                ["PDL 98/2024", "Privatizações", "Sustação de decreto de alienação de ativos estatais"],
+                ["RIC 155/2024", "Transparência", "Informações sobre contratos emergenciais"],
+                ["REQ 233/2024", "Fiscalização", "Audiência pública para apuração de irregularidades"]
+            ]
+        },
+        votacoes: [
+            ["PL 412/2024", "Serviços públicos", "Reajuste de tarifas", "SIM"],
+            ["PDL 98/2024", "Privatizações", "Alienação de estatais", "NÃO"],
+            ["PEC 45/2023", "Sistema tributário", "Criação do IVA", "ABSTENÇÃO"],
+            ["PL 233/2022", "Direitos trabalhistas", "Contratos intermitentes", "AUSENTE"]
+        ]
+    },
+
+    jandira: JSON.parse(JSON.stringify(this?.glauber || {})),
+    aecio: JSON.parse(JSON.stringify(this?.glauber || {}))
+};
+
+// Copiando estrutura base (modelo demonstrativo)
+dados.jandira = dados.glauber;
+dados.aecio = dados.glauber;
+
+function carregarDeputado() {
+    const dep = document.getElementById("deputadoSelect").value;
+    const d = dados[dep];
+
+    let htmlProp = `<span class="badge">📌 Quantidade e perfil</span><ul>`;
+    d.proposicoes.perfil.forEach(p => htmlProp += `<li>${p}</li>`);
+    htmlProp += `</ul>`;
+
+    htmlProp += `<span class="badge">📌 Tipos mais frequentes</span><ul>`;
+    d.proposicoes.tipos.forEach(t => htmlProp += `<li>${t}</li>`);
+    htmlProp += `</ul>`;
+
+    htmlProp += `<span class="badge">📑 Exemplos de proposições</span>`;
+    d.proposicoes.exemplos.forEach(e => {
+        htmlProp += `<div class="item"><strong>${e[0]}</strong>Tema: ${e[1]}<br>Ementa: ${e[2]}</div>`;
+    });
+
+    document.getElementById("proposicoes").innerHTML = htmlProp;
+
+    let htmlVot = "";
+    d.votacoes.forEach(v => {
+        let cls = v[3] === "SIM" ? "voto-sim" :
+                  v[3] === "NÃO" ? "voto-nao" :
+                  v[3] === "ABSTENÇÃO" ? "voto-abstencao" : "voto-ausente";
+
+        htmlVot += `<div class="item"><strong>${v[0]}</strong>
+        Tema: ${v[1]}<br>
+        Ementa: ${v[2]}<br>
+        Posicionamento: <span class="${cls}">${v[3]}</span></div>`;
+    });
+
+    document.getElementById("votacoes").innerHTML = htmlVot;
+}
+
+carregarDeputado();
+</script>
 
 </body>
 </html>
